@@ -1,12 +1,49 @@
 import base64
 import binascii
+from bitarray import bitarray
 import random
 
 
-def int8_to_binstr(i):
-    """Convert 8-bit integer into a string of '1' and '0'."""
+def bitarray_to_hex(b):
+    """Convert a bitarray to a hexidecimal string."""
+    bytes_ = b.tobytes()
+
+
+def bitarray_to_int(b):
+    """Convert a bitarray to an integer."""
+    return int(b.to01(), 2)
+
+
+def int_to_bitarray(i, bits):
+    """Convert integer to a bitarray.
+    
+    Args:
+        i (int): Value to convert.
+        bits (int): Number of bits for this integer.
+    
+    Returns:
+        str: binary representation of the integer.
+    
+    """
+    output = bitarray()
+    for j in range(0,bits):
+        bit = (i & (1 << j)) >> j
+        output.insert(0, bit)
+    return output
+    
+
+def int_to_binstr(i, bits):
+    """Convert integer to a '01' string.
+    
+    Args:
+        bits (int): Number of bits for this integer.
+    
+    Returns:
+        str: binary representation of the integer.
+    
+    """
     output = ''
-    for j in range(0,8):
+    for j in range(0,bits):
         bit = (i & (1 << j)) >> j
         output = str(bit) + output
     return output
