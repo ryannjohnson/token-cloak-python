@@ -286,7 +286,7 @@ class Token:
         
         Since the decoding seeds are built into the front of the
         resulting token, the number of random bits must be at least
-        as long as the number of injected values * 64.
+        as long as the number of injected value bits.
         """
         # Cast it to integer
         num = int(num)
