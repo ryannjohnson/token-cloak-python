@@ -3,6 +3,20 @@ import binascii
 import random
 
 
+def int8_to_binstr(i):
+    """Convert 8-bit integer into a string of '1' and '0'."""
+    output = ''
+    for j in range(0,8):
+        bit = (i & (1 << j)) >> j
+        output = str(bit) + output
+    return output
+
+
+def binstr_to_int8(s):
+    """Convert a string of '1' and '0' to an int."""
+    pass
+
+
 def insert_bits(source, insert, positions):
     """Distribute bits from the inserted value into the source.
     
