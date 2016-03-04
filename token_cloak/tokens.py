@@ -23,9 +23,14 @@ class Token:
     
     A sample config could be stored as and submitted as the following:
         config = {
+            "secret": "the length of this should be very long",
             "random_bits": 512,
             "seed_bits": 4,
             "layers": [64,44,12],
+            "version": {
+                "bits": 6,
+                "value": 1,
+            },
         }
     
     Here is a sample usage:
@@ -41,16 +46,18 @@ class Token:
     """
     
     def __init__(self, config=None):
-        """Set some object properties."""
+        """Set default object properties."""
         
         # Version values
         # These are used to define the token version amongst other
         # encoding styles.
-        self.version_number = 1
-        self.version_length = 6
+        self.version_value = 1
+        self.version_bits = 6
+        
+        # The secret string to use for seeding
+        self.secret = None
         
         # Global seed bit length
-        # WARNING: changing this will invalidate any previous tokens
         self.seed_bits = 4
         
         # Used in the random token generator
@@ -147,12 +154,12 @@ class Token:
         current_length += seed_length
         
         # Now insert the tokening seed
-        positions = single_iterator_to_list(range(self.version_length))
+        positions = single_iterator_to_list(range(self.version_bits))
         public_token = insert_bits(
                 source=working_token,
-                insert=self.version_number,
+                insert=self.version_value,
                 positions=positions)
-        current_length += self.version_length
+        current_length += self.version_bits
         
         # Take away that space preserver
         working_token &= (1 << current_length) - 1
@@ -211,14 +218,14 @@ class Token:
             return self.stored_token
         
         # Get the version from the token
-        positions = single_iterator_to_list(range(self.version_length))
+        positions = single_iterator_to_list(range(self.version_bits))
         working_token, version = extract_bits(
                 source=working_token,
                 positions=positions[::-1])
-        working_length -= self.version_length
+        working_length -= self.version_bits
         
-        # Only handle version 1
-        if version != 1:
+        # Must match the designated version
+        if version != self.version_value:
             return none
         
         # Get the seed bits from the token
@@ -369,22 +376,56 @@ class Token:
             ConfigError: layers must be lists or ints.
         
         """
+        # If nothing, exit gently.
         if not config:
             return
+        
+        # Ingest the secret used to seed everything.
+        if config.get('secret', None):
+            self.secret = config.get('secret')
+        
+        # Ingest the random bits, designating the length of raw token.
         if config.get('random_bits', None):
             self.set_random_bits(config.get('random_bits'))
+        
+        # Ingest seed bits, which determines how many possible seeds
+        # there can be.
         if config.get('seed_bits', None):
             self.seed_bits = config.get('seed_bits')
+        
+        # Ingest the layers sequence and sizes.
         self.layers = []
-        for row in config.get('layers'):
-            if isinstance(row, list):
-                self.layers.append((row[0], row[1],))
-            elif isinstance(row, int):
-                self.layers.append((row, None,))
-            else:
-                raise ConfigError('layers must be lists or ints')
+        if config.get('layers', None):
+            if not isinstance(config.get('layers'), list):
+                raise ConfigError('layers must be a list')
+            for row in config.get('layers'):
+                if isinstance(row, list) or isinstance(row, tuple):
+                    if len(row) not in [1,2]:
+                        err = 'layer lists must have one or two values'
+                        raise ConfigError(err)
+                    for value in row:
+                        if not isinstance(value, int):
+                            err = 'layer lists may only contain ints'
+                            raise ConfigError(err)
+                    self.layers.append((row[0], row[1],))
+                elif isinstance(row, int):
+                    self.layers.append((row, None,))
+                else:
+                    raise ConfigError('layers must be lists or ints')
+        
+        # Ingest a public token, although this shouldn't be required.
         if config.get('token', None):
             self.public_token = config.get('token', None)
+        
+        # Ingest the version, essential to allowing future growth.
+        if config.get('version', None):
+            if not isinstance(config.get('version'), dict):
+                raise ConfigError('version must be a dict')
+            version = config.get('version')
+            self.version_bits = version.get('bits', None)
+            self.version_value = version.get('value', None)
+            if self.version_bits == None or self.version_value == None:
+                raise ConfigError('version must contain both bits and value')
     
     
     def public_token_bit_length(self, with_padding=True):
@@ -405,7 +446,7 @@ class Token:
                 total_bits += layer[0]
             
             # Add the version
-            total_bits += self.version_length
+            total_bits += self.version_bits
         
         # Pad it?
         if with_padding:
