@@ -4,6 +4,11 @@ from bitarray import bitarray
 import random
 
 
+def bitarray_to_base64(b):
+    """Convert a bitarray to a base64 encoded string."""
+    pass
+
+
 def bitarray_to_hex(b):
     """Convert a bitarray to a hexidecimal string."""
     bytes_ = b.tobytes()
@@ -13,6 +18,24 @@ def bitarray_to_hex(b):
 def bitarray_to_int(b):
     """Convert a bitarray to an integer."""
     return int(b.to01(), 2)
+
+
+def base64_to_bitarray(s, url_safe=False):
+    """Convert a base64 string to a bitarray.
+    
+    Args:
+        s (str): Base64 encoded string.
+        url_safe (bool): Whether to substitute '-_' with '+/'.
+    
+    """
+    # First, make sure the b64 is properly padded and formatted
+    if url_safe:
+        s = s.replace('-','+').replace('_','/')
+    s += '=='
+    
+    # Decode it
+    bytes_ = base64.b64decode(s)
+    return bitarray().frombytes(bytes_)
 
 
 def int_to_bitarray(i, bits):
@@ -33,6 +56,12 @@ def int_to_bitarray(i, bits):
     return output
     
 
+def hex_to_bitarray(s):
+    """Convert hexidecimal string into a bitarray."""
+    bytes_ = binascii.unhexlify(s)
+    return bitarray().frombytes(bytes_)
+
+
 def int_to_binstr(i, bits):
     """Convert integer to a '01' string.
     
@@ -48,11 +77,6 @@ def int_to_binstr(i, bits):
         bit = (i & (1 << j)) >> j
         output = str(bit) + output
     return output
-
-
-def binstr_to_int8(s):
-    """Convert a string of '1' and '0' to an int."""
-    pass
 
 
 def insert_bits(source, insert, positions):
