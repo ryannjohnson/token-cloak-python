@@ -334,3 +334,44 @@ class BitCollection:
             return 0
         return self.content.length()
     
+    
+    def to_base64(self, url_safe=False):
+        """Express this collection as a base64 string.
+        
+        Args:
+            url_safe (Optional[bool]): Whether the output should contain
+                '-_' instead of '+/'.
+        
+        Returns:
+            str: base64 encoded.
+        
+        """
+        return bitarray_to_base64(self.content, url_safe=url_safe)
+    
+    
+    def to_bytes(self):
+        """Express this collection as bytes."""
+        return self.content.tobytes()
+    
+    
+    def to_hex(self):
+        """Express this collection as a hexadecimal string."""
+        return bitarray_to_hex(self.content)
+    
+    
+    def to_int(self):
+        """Express this collection as an integer."""
+        return bitarray_to_int(self.content)
+    
+    
+    def to_str(self, codec):
+        """Express this collection as a string.
+        
+        Args:
+            codec (str): Method of decoding.
+        
+        Returns:
+            str: decoded with the given codec.
+        
+        """
+        return bitarray_to_str(self.content, codec=codec)
