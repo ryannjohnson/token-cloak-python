@@ -3,37 +3,65 @@ import binascii
 from bitarray import bitarray
 
 from .exceptions import ConfigError
-from .utils import int_to_binstr
+from .utils import (
+        base64_to_bitarray, bitarray_to_base64, bitarray_to_hex,
+        bitarray_to_int, bitarray_to_str, hex_to_bitarray, int_to_bitarray,
+        str_to_bitarray)
 
 
 class BitCollection:
-    """Object to hold and manipulate byte arrays.
+    """Holds, manipulates, and expresses bitarrays in various formats.
     
-    These collections will be the interface between token data and
-    bits that need to be injected and extracted from the data.
+    A BitCollection is an abstraction from bitarray, which only supports
+    a few interfaces for data. This abstraction focuses on a variety of
+    input and output formats, as well as the ability to sew in bits from
+    each of these formats.
     """
     
-    def __init__(self, content=None):
+    def __init__(self, b=None):
         """Make a new collection out of a bytearray.
         
         Args:
-            content (bytearray): Source to create collection from.
-            bit_length (Optional[int]): Set the initial bit length.
+            b (bitarray): Source to create collection from.
+        
         """
         # Setup the parameters
-        bits = bitarray()
-        bytes_ = bytearray([])
-        if content:
-            if not isinstance(content, bytearray):
-                raise ConfigError('content must be a bytearray')
-            bytes_ = content
-            
-            # Populate it with the bytearray info.
-            for byte_ in bytes_:
-                bits += bitarray(int_to_binstr(byte_, bits=8))
+        if b:
+            if not isinstance(b, bitarray):
+                raise ConfigError('b must be a bitearray')
+            self.content = b
+        else:
+            self.content = bitarray()
+    
+    
+    @classmethod
+    def from_base64(cls, s, url_safe=False):
+        """Creates a new collection from a base64 string.
         
-        # Set the content
-        self.content = bits
+        Args:
+            s (str): A base64 string to ingest to the collection.
+            url_safe (Optional[bool]): If true, substitute '-_' with
+                '+/'.
+        
+        Return:
+            BitCollection: new instance.
+            
+        """
+        return cls(base64_to_bitarray(s, url_safe=url_safe))
+    
+    
+    @classmethod
+    def from_bytes(cls, b):
+        """Creates a new collection from a hexidecimal string.
+        
+        Args:
+            b (bytes): Bytes to start a collection with.
+        
+        Return:
+            BitCollection: new instance.
+        
+        """
+        return cls(bitarray().frombytes(b))
     
     
     @classmethod
@@ -51,35 +79,7 @@ class BitCollection:
             ValueError: s isn't a valid hexidecimal number.
         
         """
-        # Convert it from hex
-        content = bytearray.fromhex(s)
-        
-        # Return the new collection
-        return cls(content=content)
-    
-    
-    @classmethod
-    def from_base64(cls, s, url_safe=False):
-        """Creates a new collection from a base64 string.
-        
-        Args:
-            s (str): A base64 string to ingest to the collection.
-            url_safe (Optional[bool]): If true, substitute '-_' with
-                '+/'.
-        
-        Return:
-            BitCollection: new instance.
-            
-        """
-        if url_safe:
-            s = s.replace('-','+').replace('_','/')
-        s += '=='
-        
-        # Convert it from hex
-        content = bytearray(base64.b64decode(s))
-        
-        # Return the new collection
-        return cls(content=content)
+        return cls(hex_to_bitarray(s))
     
     
     @classmethod
@@ -94,28 +94,152 @@ class BitCollection:
             BitCollection: new instance.
             
         """
-        # Instantiate here
-        obj = cls()
+        return cls(int_to_bitarray(i, bits=bits))
+    
+    
+    @classmethod
+    def from_str(cls, s, codec):
+        """Creates a new collection from a string.
         
-        # Manually assign the bitarray
-        obj.content = bitarray(int_to_binstr(i, bits=bits))
+        Args:
+            s (str): A string to encode into bits.
+            codec (str): Method of encoding.
         
-        # Return the new collection
-        return obj
+        Return:
+            BitCollection: new instance.
+            
+        """
+        return cls(str_to_bitarray(s, codec=codec))
     
     
-    def length(self):
-        """Return the number of bits stored in the object."""
-        if not self.content:
-            return 0
-        return self.content.length()
+    def extract_bitarray(self, positions):
+        """Extract bits from this collection at the given positions.
+        
+        Args:
+            positions (list): The positions to extract bits from the
+                collection.
+        
+        Returns:
+            bitarray: bits in the order of extraction.
+        
+        """
+        # Roll through each position.
+        bits = bitarray()
+        for j, position in enumerate(positions):
+            
+            # Put the value into this collection
+            bits.append(self.content.pop(position))
+        
+        # Return reorder the bits and return
+        bits.reverse()
+        return bits
     
     
-    def insert_bitarray(self, b, position):
+    def extract_bytes(self, positions):
+        """Extract bytes from this collection at the given positions.
+        
+        Args:
+            positions (list): The positions to extract bits from the
+                collection.
+        
+        Returns:
+            bytes: in the order of extraction.
+        
+        """
+        # Extract the bits
+        bits = self.extract_bitarray(positions=positions)
+        
+        # Convert to bytes
+        return bits.tobytes()
+    
+    
+    def extract_int(self, positions):
+        """Extract the bits of the integer from this collection.
+        
+        Args:
+            positions (list): The positions to extract bits from the
+                collection.
+        
+        Returns:
+            int: in the order of extraction.
+        
+        """
+        # Roll through each position.
+        output = 0
+        for j, position in enumerate(positions):
+            
+            # Get the bit from this collection
+            bit = self.content.pop(position)
+            
+            # Add to the output
+            output |= bit << j
+        
+        # Return the reconstructed integer
+        return output
+    
+    
+    def extract_hex(self, positions):
+        """Extract a hexadecimal string from this collection.
+        
+        Args:
+            positions (list): The positions to extract bits from the
+                collection.
+        
+        Returns:
+            str: hexadecimal string in order of extraction.
+        
+        """
+        # Extract the bits
+        bits = self.extract_bitarray(positions=positions)
+        
+        # Convert to hex
+        return bitarray_to_hex(bits)
+    
+    
+    def extract_base64(self, positions, url_safe=False):
+        """Extract bits from this collection at the given positions.
+        
+        Args:
+            positions (list): The positions to extract bits from the
+                collection.
+            url_safe (Optional[bool]): Whether the output string
+                contains '-_' instead of '+/'.
+        
+        Returns:
+            str: base64 encoded.
+        
+        """
+        # Extract the bits
+        bits = self.extract_bitarray(positions=positions)
+        
+        # Convert to base64
+        return bitarray_to_base64(bits, url_safe=url_safe)
+    
+    
+    def extract_str(self, positions, codec):
+        """Extract bits from this collection at the given positions.
+        
+        Args:
+            positions (list): The positions to extract bits from the
+                collection.
+            codec (str): Method of decoding.
+        
+        Returns:
+            str: base64 encoded.
+        
+        """
+        # Extract the bits
+        bits = self.extract_bitarray(positions=positions)
+        
+        # Convert to str via the codec
+        return bitarray_to_str(bits, codec=codec)
+    
+    
+    def insert_bitarray(self, b, positions):
         """Insert bits into this collection at the given positions.
         
         Args:
-            b (bytearray): Content to insert.
+            b (bitarray): Content to insert.
             positions (list): The positions to insert bits into the
                 collection.
         
@@ -125,6 +249,22 @@ class BitCollection:
             
             # Put the value into this collection
             self.content.insert(position, b[j])
+    
+    
+    def insert_bytes(self, b, positions):
+        """Insert byte bits into this collection at the given positions.
+        
+        Args:
+            b (bytes|bytearray): Content to insert.
+            positions (list): The positions to insert bits into the
+                collection.
+        
+        """
+        # Use the bitarray
+        bits = bitarray().frombytes(b)
+        
+        # Run the bitarray function
+        self.insert_bitarray(bits, positions=positions)
     
     
     def insert_int(self, i, positions):
@@ -144,4 +284,53 @@ class BitCollection:
             
             # Insert it into the content
             self.content.insert(position, bit)
+    
+    
+    def insert_hex(self, s, positions):
+        """Insert a hexadecimal string into this collection.
         
+        Args:
+            s (str): Hexadecimal string to insert.
+            positions (list): The positions to insert bits into the
+                collection.
+        
+        """
+        self.insert_bitarray(hex_to_bitarray(s), positions=positions)
+    
+    
+    def insert_base64(self, s, positions, url_safe=False):
+        """Insert byte bits into this collection at the given positions.
+        
+        Args:
+            s (str): Base64 string to insert.
+            positions (list): The positions to insert bits into the
+                collection.
+            url_safe (Optional[bool]): Whether the input string contains
+                '-_' instead of '+/'.
+        
+        """
+        bits = base64_to_bitarray(s, url_safe=url_safe)
+        self.insert_bitarray(bits, positions=positions)
+    
+    
+    def insert_str(self, s, positions, codec):
+        """Insert string into this collection at the given positions.
+        
+        Args:
+            s (str): Hexadecimal to insert.
+            positions (list): The positions to insert bits into the
+                collection.
+            codec (str): Method of encoding. Examples include 'ascii'
+                and 'utf-8'.
+        
+        """
+        bits = str_to_bitarray(s, codec=codec)
+        self.insert_bitarray(bits, positions=positions)
+    
+    
+    def length(self):
+        """Return the number of bits stored in the object."""
+        if not self.content:
+            return 0
+        return self.content.length()
+    

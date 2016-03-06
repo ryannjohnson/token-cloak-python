@@ -4,9 +4,22 @@ from bitarray import bitarray
 import random
 
 
-def bitarray_to_base64(b):
+def bitarray_to_base64(b, url_safe=False):
     """Convert a bitarray to a base64 encoded string."""
-    pass
+    # Get the bytes
+    bytes_ = b.tobytes()
+    
+    # Convert it to a string
+    string = binascii.b2a_base64(bytes_).decode('ascii').rstrip('\n')
+    if strip_padding:
+        string = string.rstrip('=')
+    
+    # Make it url-safe
+    if url_safe:
+        string = string.replace('+','-').replace('/','_')
+    
+    # Return the string
+    return string
 
 
 def bitarray_to_hex(b):
@@ -20,12 +33,29 @@ def bitarray_to_int(b):
     return int(b.to01(), 2)
 
 
+def bitarray_to_str(b, codec):
+    """Convert at bitarray to a string.
+    
+    Args:
+        codec (str): How to decode the bits. Examples include 'ascii'
+            and 'utf-8'.
+    
+    Returns:
+        str: made from the decoded bytes from the bits.
+    
+    """
+    return b.tobytes().decode(codec)
+
+
 def base64_to_bitarray(s, url_safe=False):
     """Convert a base64 string to a bitarray.
     
     Args:
         s (str): Base64 encoded string.
         url_safe (bool): Whether to substitute '-_' with '+/'.
+    
+    Returns:
+        bitarray: made from the base64 string.
     
     """
     # First, make sure the b64 is properly padded and formatted
@@ -77,6 +107,20 @@ def int_to_binstr(i, bits):
         bit = (i & (1 << j)) >> j
         output = str(bit) + output
     return output
+
+
+def str_to_bitarray(s, codec):
+    """Convert a string to a bitarray.
+    
+    Args:
+        codec (str): How to encode the string into bits. Examples
+            include 'ascii' and 'utf-8'.
+    
+    Returns:
+        bitarray: made from the input string.
+    
+    """
+    return bitarray().frombytes(s.encode(codec))
 
 
 def insert_bits(source, insert, positions):
