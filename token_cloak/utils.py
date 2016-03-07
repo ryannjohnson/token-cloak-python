@@ -304,3 +304,44 @@ def single_iterator_to_list(iterator):
     for i in iterator:
         output.append(i)
     return output
+
+
+def chunk_string(value, n):
+    """Iterate string into n evenly divided chunks.
+    
+    Args:
+        value (str): To be divided.
+        n (int): The number of chunks to produce.
+    
+    Returns:
+        list: Ordered list of strings.
+    
+    Source:
+        http://stackoverflow.com/questions/22571259/split-a-string-into-n-equal-parts#22571421
+    
+    """
+    # How big are chunks? Result is floored
+    chunk_size = len(value) // n
+    
+    # Make sure all characters are used (if size was floored)
+    if len(value) % n:
+        chunk_size += 1
+    
+    # Get the iterator going
+    iterator = iter(value)
+    for a in range(n):
+        
+        # Build this specific chunk, one char at a time
+        output = list()
+        for b in range(chunk_size):
+            
+            # Add the character to the chunk
+            try:
+                output.append(next(iterator))
+            
+            # String stopped early
+            except StopIteration:
+                break
+        
+        # Chunk completed, yield it
+        yield ''.join(output)

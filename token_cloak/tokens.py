@@ -1,6 +1,5 @@
 import base64
 import copy
-from django.conf import settings
 import os
 import random
 import re
@@ -8,7 +7,7 @@ import re
 from .collections import BitCollection
 from .exceptions import ConfigError
 from .utils import (
-        b64_to_int, extract_bits, insert_bits,
+        b64_to_int, chunk_string, extract_bits, insert_bits,
         int_to_b64, single_iterator_to_list)
 
 
@@ -169,7 +168,7 @@ class TokenLayer:
                 return BitCollection.from_hex(v)
             if self.type == 'base64':
                 return BitCollection.from_base64(
-                        v, url_safe=self.config.get('url_safe', False)
+                        v, url_safe=self.config.get('url_safe', False))
             if self.type == 'str':
                 return BitCollection.from_str(
                         v, codec=self.config.get('codec', None))
@@ -245,7 +244,7 @@ class Token:
         """Set default object properties."""
         
         # The secret string to use for predictable randomness.
-        self.secret = None
+        self.secret_key = None
         
         # Number of bits saying how many automatic positions exist.
         self.seed_bits = 4
@@ -273,8 +272,18 @@ class Token:
         
         """
         # Ingest the secret used to seed everything.
-        if config.get('secret', None):
-            self.secret = config.get('secret')
+        secret = config.get('secret_key', None)
+        if secret:
+            if not isinstance(secret, str):
+                raise ConfigError('secret key must be a string')
+            self.secret_key = secret
+        
+        # Might have to use global secret if available
+        else:
+            from token_cloak import secret_key
+            if not secret_key:
+                raise ConfigError('secret key is not set')
+            self.secret_key = secret_key
         
         # Determines the length of random token.
         random_bits = config.get('random_bits', None)
@@ -339,32 +348,46 @@ class Token:
         if not self.layers:
             return self.public_token
         
-        # Decide on each seed for the information encoding
-        seeds = []
-        for i in range(len(self.layers)):
-            seed = random.randint(0,2 ** self.seed_bits - 1)
-            seed_value = settings.TOKEN_VERSIONS.get(seed)
-            seeds.append((seed, seed_value,))
+        # How many layers need seeds?
+        need_seeds = 0
+        for layer in self.layers:
+            if not layer.positions:
+                need_seeds += 1
+        
+        # Decide on predictable seed positions up front
+        seed_sources = []
+        if need_seeds > 0:
+            seed_sources = chunk_string(self.secret, need_seeds)[::-1]
+            for i in range(need_seeds):
+                seed = random.randint(0,2 ** self.seed_bits - 1)
+                seed_value = settings.TOKEN_VERSIONS.get(seed)
+                seeds.append((seed, seed_value,))
         
         # Go through each layer in order
         for index, layer in enumerate(self.layers):
             
-            # Get this layer's positions setup.
+            # Does this layer have positions?
+            seed_key = None
+            seed_positions = None
             positions = layer.positions
             if not positions:
+                
+                # Get the seed prepared.
+                seed_key = random.randint(0, (2 ** self.seed_bits) - 1)
+                seed_value = ''
+                random.seed(seed_key)
+                for i in range(len(self.secret)):
+                    pass
+                
+                # Generate the positions using the seed.
                 positions = self.generate_bit_positions(
                         seed=seeds[index][1],
                         max_position=self.public_token.length,
                         bits=layer.bits)
             
             # Sew in the new bits
-            working_token = insert_bits(
-                    source=working_token,
-                    insert=layer_value,
-                    positions=positions)
-            
-            # Assuming another round, append the bit length
-            current_length += bits
+            self.public_token.insert(
+                    layer.to_bitcollection(args[index]), positions=positions)
         
         # Concat the seeds for splicing
         final_seeds = 0
@@ -380,9 +403,6 @@ class Token:
                 insert=final_seeds,
                 positions=positions)
         current_length += seed_length
-        
-        # Take away that space preserver
-        working_token &= (1 << current_length) - 1
         
         # All spliced - encode it and return
         return self.encode_b64(public_token, bit_length=current_length)
