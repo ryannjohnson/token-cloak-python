@@ -286,6 +286,9 @@ class Token:
                 raise ConfigError('secret key is not set')
             self.secret_key = secret_key
         
+        # Get the secret key collection going.
+        self.secret_key_collection = SecretKeyCollection(self.secret_key)
+        
         # Determines the length of random token.
         random_bits = config.get('random_bits', None)
         if random_bits:
@@ -358,55 +361,49 @@ class Token:
         # Decide on predictable seed positions up front
         seed_sources = []
         if need_seeds > 0:
-            seed_sources = chunk_string(self.secret, need_seeds)[::-1]
-            for i in range(need_seeds):
-                seed = random.randint(0,2 ** self.seed_bits - 1)
-                seed_value = settings.TOKEN_VERSIONS.get(seed)
-                seeds.append((seed, seed_value,))
+            for chunk in self.secret_key_collection.chunk(need_seeds):
+                seed_sources.append(chunk)
+            seed_sources = seed_sources[::-1]
         
         # Go through each layer in order
         for index, layer in enumerate(self.layers):
             
             # Does this layer have positions?
-            seed_key = None
-            seed_positions = None
-            positions = layer.positions
+            layer_seed_seed = None
+            layer_seed_value = None
+            layer_positions = layer.positions
             if not positions:
                 
                 # Get the seed prepared.
-                seed_key = random.randint(0, (2 ** self.seed_bits) - 1)
-                seed_value = ''
-                r = MT19937(seed_key)
-                for i in range(len(self.secret)):
-                    pass
+                layer_seed_seed = seed_sources.pop()
+                layer_seed_value = random.randint(0, (2 ** self.seed_bits) - 1)
                 
-                # Generate the positions using the seed.
-                positions = self.generate_bit_positions(
-                        seed=seeds[index][1],
+                # Generate the layer positions using the seed.
+                layer_positions = self.generate_bit_positions(
+                        seed=layer_seed_value,
                         max_position=self.public_token.length,
                         bits=layer.bits)
             
-            # Sew in the new bits
+            # Sew in the new bits.
             self.public_token.insert(
-                    layer.to_bitcollection(args[index]), positions=positions)
+                    layer.to_bitcollection(
+                            args[index]), positions=layer_positions)
+            
+            # Was there an automatic seed?
+            if layer_seed_seed and layer_seed_value:
+                
+                # Generate the seed positions.
+                seed_positions = self.generate_bit_positions(
+                        seed=layer_seed_seed,
+                        max_position=self.public_token.length,
+                        bits=self.seed_bits)
+                
+                # Sew in the seed bits.
+                self.public_token.insert_int(
+                        layer_seed_value, positions=seed_positions)
         
-        # Concat the seeds for splicing
-        final_seeds = 0
-        seed_length = 0
-        for i, seed in enumerate(seeds):
-            seed_length += self.seed_bits
-            final_seeds |= seed[0] << (i*self.seed_bits)
-        
-        # Sew in the seed bits
-        positions = single_iterator_to_list(range(1,(seed_length*2)+1,2))
-        working_token = insert_bits(
-                source=working_token,
-                insert=final_seeds,
-                positions=positions)
-        current_length += seed_length
-        
-        # All spliced - encode it and return
-        return self.encode_b64(public_token, bit_length=current_length)
+        # All spliced - return self.
+        return self
     
     
     def decode(self, token):

@@ -470,7 +470,7 @@ class SecretKeyCollection:
                 except StopIteration:
                     break
             
-            # Convert to bytes convert to new ascii string.
+            # Hash the bytes.
             m = hashlib.sha256()
             m.update(bytes_)
             d = m.digest()
