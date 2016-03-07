@@ -27,9 +27,13 @@ class TokenLayer:
     def __init__(self, d):
         """Takes a dictionary of settings and ingests it as a layer."""
         
+        # Setup variable for later.
+        self.value = None
+        
         # Must be a dictionary.
         if not isinstance(d, dict):
             raise ConfigError('layers must each be a dict')
+        self.config = d
         
         # What is this layer's type?
         self.type = d.get('type', None)
@@ -85,12 +89,16 @@ class TokenLayer:
                     err = 'layer base64 length must be divisible by 3'
                     raise ConfigError(err)
                 self.bits = self.length * 24
+            
+            # Set the config for url safe.
+            self.config['url_safe'] = self.config.get('url_safe', False)
         
         # String?
         elif self.type == 'str':
             
             # Requires a codec.
-            codec = d.get('codec', None)
+            config = d.get('codec', None)
+            self.config['codec'] = config
             if not codec or not isinstance(codec, str):
                 raise ConfigError('layer str codec is required')
             
@@ -130,13 +138,10 @@ class TokenLayer:
             
             # Positions is valid
             self.positions = positions
-        
-        # It passed, assign the dict.
-        self.content = d
     
     
-    def make_bitcollection(self, v):
-        """Convert the value to a BitCollection."""
+    def to_bitcollection(self, v):
+        """Get the BitCollection for this layer."""
         
         # Is it an int?
         if self.type == 'int':
@@ -150,12 +155,44 @@ class TokenLayer:
         if self.type == 'bytes':
             if not isinstance(v, bytes):
                 raise ValueError('layer value must be bytes')
-            if len(v) != (self.bits // 8):
+            if len(v) != self.length:
                 raise ValueError('layer value is incorrect length')
             return BitCollection.from_bytes(v)
         
         # Is it string?
-        if self.type 
+        if self.type in ['hex','base64','str']:
+            if not isinstance(v, str):
+                raise ValueError('layer value must be str')
+            if len(v) != self.length:
+                raise ValueError('layer value is incorrect length')
+            if self.type == 'hex':
+                return BitCollection.from_hex(v)
+            if self.type == 'base64':
+                return BitCollection.from_base64(
+                        v, url_safe=self.config.get('url_safe', False)
+            if self.type == 'str':
+                return BitCollection.from_str(
+                        v, codec=self.config.get('codec', None))
+        
+        # Something failed here, which should be impossible.
+        raise ConfigError('unable to create BitCollection')
+    
+    
+    def from_bitcollection(self, b):
+        """Convert to original format."""
+        if not self.value:
+            return None
+        if self.type == 'int':
+            return b.to_int()
+        if self.type == 'bytes':
+            return b.to_bytes()
+        if self.type == 'hex':
+            return b.to_hex()
+        if self.type == 'base64':
+            return b.to_base64(url_safe=self.config.get('url_safe'))
+        if self.type == 'str':
+            return b.to_str(codec=self.config.get('codec'))
+        raise ConfigError('unable to convert to original format')
     
 
 class Token:

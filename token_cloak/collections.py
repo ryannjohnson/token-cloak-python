@@ -57,7 +57,7 @@ class BitCollection:
         Args:
             b (bytes): Bytes to start a collection with.
         
-        Return:
+        Returns:
             BitCollection: new instance.
         
         """
@@ -72,7 +72,7 @@ class BitCollection:
             s (str): A hexidecimal string to ingest to the
                 collection.
         
-        Return:
+        Returns:
             BitCollection: new instance.
         
         Raises:
@@ -90,7 +90,7 @@ class BitCollection:
             i (int): An integer to encode into bits.
             bits (int): Number of bits to assign this integer to.
         
-        Return:
+        Returns:
             BitCollection: new instance.
             
         """
@@ -105,11 +105,25 @@ class BitCollection:
             s (str): A string to encode into bits.
             codec (str): Method of encoding.
         
-        Return:
+        Returns:
             BitCollection: new instance.
             
         """
         return cls(str_to_bitarray(s, codec=codec))
+    
+    
+    def extract(self, positions):
+        """Extract BitCollection from this collection.
+        
+        Args:
+            positions (list): The positions to extract bits from the
+                collection.
+        
+        Returns:
+            BitCollection: bits in the order of extraction.
+        
+        """
+        return self.__class__(self.extract_bitarray(positions=positions))
     
     
     def extract_bitarray(self, positions):
@@ -233,6 +247,18 @@ class BitCollection:
         
         # Convert to str via the codec
         return bitarray_to_str(bits, codec=codec)
+    
+    
+    def insert(self, b, positions):
+        """Insert another BitCollection into this collection.
+        
+        Args:
+            b (BitCollection): Content to insert.
+            positions (list): The positions to insert bits into the
+                collection.
+        
+        """
+        self.insert_bitarray(b.content, positions=positions)
     
     
     def insert_bitarray(self, b, positions):
