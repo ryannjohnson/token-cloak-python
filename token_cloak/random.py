@@ -3,6 +3,9 @@ Source:
     https://en.wikipedia.org/wiki/Mersenne_Twister#Python_implementation
 """
 
+import math
+
+
 def _int32(x):
     # Get the 32 least significant bits.
     return int(0xFFFFFFFF & x)
@@ -56,16 +59,14 @@ class MT19937:
         # Organize the input.
         low = min(endpoint1, endpoint2)
         high = max(endpoint1, endpoint2)
-        diff = high - low
-        
-        # Get the multiplier.
-        mult = diff / 0xFFFFFFFF
+        diff = high - low + 1
         
         # Get a random number.
         r = self.extract_number()
         
         # Transform it.
-        return int((r * mult) + low)
+        mult = diff / 0xFFFFFFFF
+        return min(math.floor((r * mult) + low), high)
     
     
     def rand(self):
