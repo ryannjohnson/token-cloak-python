@@ -1,9 +1,11 @@
 import base64
+import copy
 from django.conf import settings
 import os
 import random
 import re
 
+from .collections import BitCollection
 from .exceptions import ConfigError
 from .utils import (
         b64_to_int, extract_bits, insert_bits,
@@ -24,6 +26,7 @@ class TokenLayer:
     
     def __init__(self, d):
         """Takes a dictionary of settings and ingests it as a layer."""
+        
         # Must be a dictionary.
         if not isinstance(d, dict):
             raise ConfigError('layers must each be a dict')
@@ -39,49 +42,74 @@ class TokenLayer:
         if self.bits != None and not isinstance(bits, int):
             raise ConfigError('layer bits key must be a positive int')
         
-        # How to handle if no bits are available.
-        if not self.bits:
-            
-            # Ints require bits.
-            if self.type == 'int':
+        # Init the length.
+        self.length = d.get('length', None)
+        if not length and not self.bits:
+            raise ConfigError('layer bits key must be a positive int')
+        if length and not isinstance(length, int) or length < 1:
+            raise ConfigError('layer length must be a positive int')
+        
+        # Ints require bits.
+        if self.type == 'int':
+            if not self.bits:
                 raise ConfigError('layer int bits key must be a positive int')
-            
-            # Get the length key.
-            length = d.get('length', None)
-            if not length:
-                raise ConfigError('layer bits key must be a positive int')
-            if not isinstance(length, int) or length < 1:
-                raise ConfigError('layer length must be a positive int')
-            
-            # Bytes?
-            if self.type == 'bytes':
-                self.bits = length * 8
-            
-            # Hex?
-            elif self.type == 'hex':
-                self.bits = length * 16
-            
-            # Base64?
-            elif self.type == 'base64':
-                self.bits = 4 * 8 * (length / 3)
-                if self.bits != int(self.bits):
-                    raise ConfigError('invalid layer length for base64')
-            
-            # String?
-            elif self.type == 'str':
-                
-                # Requires a codec.
-                codec = d.get('codec', None)
-                if not codec or not isinstance(codec, str):
-                    raise ConfigError('layer str codec is required')
-                
-                # Test the codec to get its length.
-                bytes_ = 'a'.encode(codec) # May raise error
-                self.bits = len(bytes_) * 8
-            
-            # Type doesn't count.
+            self.length = self.bits
+        
+        # Bytes are 8 bits each.
+        elif self.type == 'bytes':
+            if self.bits:
+                if (self.bits % 8) != 0:
+                    raise ConfigError('layer bytes bits must be divisible by 0')
+                self.length = self.bits // 8
             else:
-                raise ConfigError('invalid layer type')
+                self.bits = self.length * 8
+        
+        # Hex are 16 bits per character.
+        elif self.type == 'hex':
+            if self.bits:
+                if (self.bits % 16) != 0:
+                    raise ConfigError('layer hex bits must be divisible by 16')
+                self.length = self.bits // 16
+            else:
+                self.bits = self.length * 16
+        
+        # Base64 are 24 bits per 3 characters.
+        elif self.type == 'base64':
+            if self.bits:
+                if (self.bits % 24) != 0:
+                    err = 'layer base64 bits must be divisible by 24'
+                    raise ConfigError(err)
+                self.length = self.length // 24
+            else:
+                if (self.length % 3) != 0:
+                    err = 'layer base64 length must be divisible by 3'
+                    raise ConfigError(err)
+                self.bits = self.length * 24
+        
+        # String?
+        elif self.type == 'str':
+            
+            # Requires a codec.
+            codec = d.get('codec', None)
+            if not codec or not isinstance(codec, str):
+                raise ConfigError('layer str codec is required')
+            
+            # Test the codec to get its length.
+            bytes_ = 'a'.encode(codec) # May raise error
+            bits_per_length = len(bytes_) * 8
+            
+            # Figure out bits and length.
+            if self.bits:
+                if (self.bits % bits_per_length) != 0:
+                    err = 'layer str bits is incompatible with %s' % codec
+                    raise ConfigError(err)
+                self.length = self.bits // bits_per_length
+            else:
+                self.bits = self.length * bits_per_length
+        
+        # Type doesn't count.
+        else:
+            raise ConfigError('invalid layer type')
         
         # Every type has the optional 'positions' key
         self.positions = None
@@ -105,7 +133,30 @@ class TokenLayer:
         
         # It passed, assign the dict.
         self.content = d
-
+    
+    
+    def make_bitcollection(self, v):
+        """Convert the value to a BitCollection."""
+        
+        # Is it an int?
+        if self.type == 'int':
+            if not isinstance(v, int):
+                raise ValueError('layer value must be an int')
+            if v.bit_length() > self.bits:
+                raise ValueError('layer value is too many bits')
+            return BitCollection.from_int(v, bits=self.bits)
+        
+        # Is it bytes?
+        if self.type == 'bytes':
+            if not isinstance(v, bytes):
+                raise ValueError('layer value must be bytes')
+            if len(v) != (self.bits // 8):
+                raise ValueError('layer value is incorrect length')
+            return BitCollection.from_bytes(v)
+        
+        # Is it string?
+        if self.type 
+    
 
 class Token:
     """Generate and encode tokens based on ordered parameters. 
@@ -165,118 +216,91 @@ class Token:
         # What should the random token look like?
         self.random_bits = 512
         
-        # Values getting spliced into the pulic token
+        # Values getting spliced into the public token.
         self.layers = []
         
-        # Results
+        # Before and after tokens.
         self.public_token = None
         self.stored_token = None
-        self.actual_length = 0
         
         # Is loads here?
         if config:
             self.config(config)
         
     
-    def config(self, config=None):
-        """Ingest a config dictionary. The 'token' key is optional.
-        
-        If no config is supplied, this method does nothing.
-        
-        Example dictionary:
-            {
-                "random_bits": 1024,
-                "seed_bits": 4,
-                "layers":[
-                    64,
-                    [32, 54321]
-                ],
-                "token": "messy-token-string"
-            }
+    def config(self, config):
+        """Ingest a config dictionary.
         
         Raises:
             ConfigError: layers must be lists or ints.
         
         """
-        # If nothing, exit gently.
-        if not config:
-            return
-        
         # Ingest the secret used to seed everything.
         if config.get('secret', None):
             self.secret = config.get('secret')
         
-        # Ingest the random bits, designating the length of raw token.
-        if config.get('random_bits', None):
-            self.set_random_bits(config.get('random_bits'))
+        # Determines the length of random token.
+        random_bits = config.get('random_bits', None)
+        if random_bits:
+            
+            # Reset the stored token
+            self.stored_token = None
+            
+            # Is it a direct injection?
+            if isinstance(random_bits, BitCollection):
+                self.stored_token = random_bits
+            
+            # Is it just a length for random generation?
+            else:
+                if not isinstance(random_bits, int) or random_bits < 0:
+                    raise ConfigError('random bits must be a non-negative int')
+                
+                # Generate the token now
+                if random_bits > 0:
+                    bytes_ = os.urandom(random_bits // 8)
+                    self.stored_token = BitCollection.from_bytes(bytes_)
         
-        # Ingest seed bits, which determines how many possible seeds
-        # there can be.
-        if config.get('seed_bits', None):
-            self.seed_bits = config.get('seed_bits')
+        # Determines how many possible seeds there can be.
+        seed_bits = config.get('seed_bits', None)
+        if seed_bits:
+            if not isinstance(seed_bits, int) or seed_bits < 0:
+                raise ConfigError('seed bits must be a non-negative int')
+            self.seed_bits = seed_bits
         
         # Ingest the layers sequence and sizes.
         self.layers = []
         if config.get('layers', None):
             if not isinstance(config.get('layers'), list):
                 raise ConfigError('layers must be a list')
+            
+            # Ingest layers as TokenLayers
             for row in config.get('layers'):
-                if isinstance(row, list) or isinstance(row, tuple):
-                    if len(row) not in [1,2]:
-                        err = 'layer lists must have one or two values'
-                        raise ConfigError(err)
-                    for value in row:
-                        if not isinstance(value, int):
-                            err = 'layer lists may only contain ints'
-                            raise ConfigError(err)
-                    self.layers.append((row[0], row[1],))
-                elif isinstance(row, int):
-                    self.layers.append((row, None,))
-                else:
-                    raise ConfigError('layers must be lists or ints')
-    
-    
-    def add_layer(self, layer):
-        """Interprets
-        
-        """
+                self.layers.append(TokenLayer(row)) # Raises ConfigError
     
     
     def encode(self, *args):
-        """Shortcut for self.generate()."""
-        return self.generate(*args)
-    
-    
-    def generate(self, *args):
-        """Make the token based on the input values.
+        """Make the public token based on the input values.
         
         If arguments are supplied with this method, then they will
         override any current settings on the object.
         
         Returns:
-            str: public token.
-            int: stored token.
+            BitCollection: public token.
         
         Raises:
             ConfigError: number of args doesn't match number of layers.
         
         """
-        # Override existing parameters if available
-        if args:
-            self.pack(*args) # ConfigError
+        # Start the new public token.
+        self.public_token = copy.deepcopy(self.stored_token)
         
-        # Start by generating the stored token
-        self.stored_token = int.from_bytes(
-                os.urandom(self.random_bits // 8), byteorder='big')
+        # Ensure the input matches
+        if len(args) != len(self.layers):
+            raise ConfigError('number of args doesn\'t match number of layers')
         
-        # Anything else?
+        # Are there any layers?
         if not self.layers:
-            return self.encode_b64(
-                    self.stored_token, bit_length=self.random_bits)
-        
-        # Pad it for the generation process
-        current_length = self.random_bits
-        working_token = self.stored_token | 1 << current_length
+            return self.public_token
         
         # Decide on each seed for the information encoding
         seeds = []
@@ -287,13 +311,14 @@ class Token:
         
         # Go through each layer in order
         for index, layer in enumerate(self.layers):
-            layer_length, layer_value = layer
             
-            # Generate the bit positions
-            seed_value = seeds[index][1]
-            bits = layer_length
-            positions = self.generate_bit_positions(
-                    seed_value, max_position=current_length, bits=bits)
+            # Get this layer's positions setup.
+            positions = layer.positions
+            if not positions:
+                positions = self.generate_bit_positions(
+                        seed=seeds[index][1],
+                        max_position=self.public_token.length,
+                        bits=layer.bits)
             
             # Sew in the new bits
             working_token = insert_bits(
@@ -565,13 +590,14 @@ class Token:
         return self.public_token, self.stored_token
         
     
-    def generate_bit_positions(self, seed, max_position, bits):
+    @staticmethod
+    def generate_bit_positions(seed, max_position, bits):
         """
         Generates an ordered list of integer positions based on the
         provided elements.
         
         Args:
-            seed (int): To create predictable randomness.
+            seed (mixed): Hashable value to create predictable randomness.
             max_position (int): Highest allowed position to generate.
             bits (int): Number of positions needed for this operation.
         

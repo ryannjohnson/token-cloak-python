@@ -328,6 +328,7 @@ class BitCollection:
         self.insert_bitarray(bits, positions=positions)
     
     
+    @property
     def length(self):
         """Return the number of bits stored in the object."""
         if not self.content:
