@@ -1,6 +1,7 @@
 import base64
 import binascii
 from bitarray import bitarray
+import hashlib
 
 from .exceptions import ConfigError
 from .utils import (
@@ -402,3 +403,78 @@ class BitCollection:
         
         """
         return bitarray_to_str(self.content, codec=codec)
+
+
+class SecretKeyCollection:
+    """Standard object to ingest and express a secret key.
+    
+    Secret keys are provided as strings that will be decoded as ASCII
+    characters. Values will be restricted to characters 0x20 thru 0x7F
+    and reorganized as compatible bytes in order to maximize entropy.
+    """
+    
+    def __init__(self, s):
+        """Initilize a collection with a single secret key."""
+        
+        # Convert string into bytes according to the ASCII standard.
+        bytes_ = bytes(s, 'ascii')
+        
+        # Loop through bytes and squash into smaller amount of bits.
+        bits = bitarray()
+        for b in bytes_:
+            t = (int(b) - 32) & 0x5F
+            bits = int_to_bitarray(t,6) + bits
+        
+        # Pad if necessary
+        mod = bits.length() % 8
+        if mod:
+            bits = bitarray('0' * (8 - mod)) + bits
+        
+        # Keep the data.
+        self.original = s
+        self.content = bits
+        self.index = 0
+    
+    
+    def chunk(self, n):
+        """Spit out even-sized chunks from the secret key bits.
+        
+        Args:
+            n (int): Number of evenly-sized chunks.
+            
+        Returns:
+            list: ints wrapped at 32 bits.
+        
+        """
+        # How big are chunks (in bytes)?
+        total_bytes = self.content.length() // 8
+        chunk_size = total_bytes // n
+        
+        # Make sure all characters are used (if size was floored)
+        if total_bytes % n:
+            chunk_size += 1
+        
+        # Get the iterator going
+        iterator = iter(self.content.tobytes())
+        for a in range(n):
+            
+            # Build this specific chunk, one char at a time
+            bytes_ = bytearray()
+            for b in range(chunk_size):
+                
+                # Add the character to the chunk
+                try:
+                    bytes_.append(next(iterator))
+                
+                # String stopped early
+                except StopIteration:
+                    break
+            
+            # Convert to bytes convert to new ascii string.
+            m = hashlib.sha256()
+            m.update(bytes_)
+            d = m.digest()
+            
+            # Chunk completed, yield the 32 bits as an int.
+            yield int.from_bytes(d[0:4], byteorder='big')
+            

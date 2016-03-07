@@ -4,8 +4,9 @@ import os
 import random
 import re
 
-from .collections import BitCollection
+from .collections import BitCollection, SecretKeyCollection
 from .exceptions import ConfigError
+from .random import MT19937
 from .utils import (
         b64_to_int, chunk_string, extract_bits, insert_bits,
         int_to_b64, single_iterator_to_list)
@@ -375,7 +376,7 @@ class Token:
                 # Get the seed prepared.
                 seed_key = random.randint(0, (2 ** self.seed_bits) - 1)
                 seed_value = ''
-                random.seed(seed_key)
+                r = MT19937(seed_key)
                 for i in range(len(self.secret)):
                     pass
                 
@@ -664,15 +665,12 @@ class Token:
         
         """
         # Seed the randomness according to the seed
-        random.seed(seed)
+        r = MT19937(seed)
         
         # Start generating
         positions = []
         for i in range(bits):
-            positions.append(random.randint(0, max_position + i))
-        
-        # Reset the seed
-        random.seed()
+            positions.append(r.rand_int(0, max_position))
         
         # Return the list of integers
         return positions
