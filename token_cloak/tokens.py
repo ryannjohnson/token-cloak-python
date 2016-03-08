@@ -193,7 +193,23 @@ class TokenLayer:
         if self.type == 'str':
             return b.to_str(codec=self.config.get('codec'))
         raise ConfigError('unable to convert to original format')
+
+
+class TokenResult:
+    """Object created from decoding a token.
     
+    The Token object only carries configuration information. It's
+    resulting collection carries its results.
+    """
+    
+    def __init__(self, private_token=None, public_token=None, layers=None):
+        """Populate the collection once with everything it'll ever have.
+        
+        """
+        self.layers = layers
+        self.public_token = public_token
+        self.private_token = private_token
+
 
 class Token:
     """Generate and encode tokens based on ordered parameters. 
@@ -251,17 +267,10 @@ class Token:
         self.seed_bits = 4
         
         # What should the random token look like?
-        self.random_bits = 512
+        self.stored_token_bits = 512
         
         # Values getting spliced into the public token.
         self.layers = []
-        
-        # Before and after tokens.
-        self.public_token = None
-        self.stored_token = None
-        
-        # Place to hold the layer content.
-        self.stored_layers = []
         
         # Is loads here?
         self.config = {}
@@ -351,12 +360,12 @@ class Token:
         # Generate a new stored token.
         if self.stored_token_bits > 0:
             bytes_ = os.urandom(self.stored_token_bits // 8)
-            self.stored_token = BitCollection.from_bytes(bytes_)
+            stored_token = BitCollection.from_bytes(bytes_)
         else:
-            self.stored_token = BitCollection()
+            stored_token = BitCollection()
         
         # Start the new public token.
-        self.public_token = copy.deepcopy(self.stored_token)
+        public_token = copy.deepcopy(stored_token)
         
         # Ensure the input matches
         if len(args) != len(self.layers):
@@ -364,7 +373,9 @@ class Token:
         
         # Are there any layers?
         if not self.layers:
-            return self.public_token
+            return TokenResult(
+                    public_token=public_token,
+                    private_token=stored_token)
         
         # How many layers need seeds?
         need_seeds = 0
@@ -380,7 +391,7 @@ class Token:
             seed_sources = seed_sources[::-1]
         
         # Go through each layer in order
-        self.stored_layers = []
+        stored_layers = []
         for index, layer in enumerate(self.layers):
             
             # Does this layer have positions?
@@ -396,16 +407,16 @@ class Token:
                 # Generate the layer positions using the seed.
                 layer_positions = self.generate_bit_positions(
                         seed=layer_seed_value,
-                        max_position=self.public_token.length,
+                        max_position=public_token.length,
                         bits=layer.bits)
             
             # Sew in the new bits.
-            self.public_token.insert(
+            public_token.insert(
                     layer.to_bitcollection(
                             args[index]), positions=layer_positions)
             
             # Save the content.
-            self.stored_layers.append(args[index])
+            stored_layers.append(args[index])
             
             # Was there an automatic seed?
             if layer_seed_seed:
@@ -413,15 +424,18 @@ class Token:
                 # Generate the seed positions.
                 seed_positions = self.generate_bit_positions(
                         seed=layer_seed_seed,
-                        max_position=self.public_token.length,
+                        max_position=public_token.length,
                         bits=self.seed_bits)
                 
                 # Sew in the seed bits.
-                self.public_token.insert_int(
+                public_token.insert_int(
                         layer_seed_value, positions=seed_positions)
         
-        # All spliced - return self.
-        return self
+        # All spliced - return results.
+        return TokenResult(
+                public_token=public_token,
+                private_token=stored_token,
+                layers=stored_layers)
     
     
     def decode(self, token, data_type=None, **kwargs):
@@ -451,28 +465,28 @@ class Token:
         if not data_type:
             if not isinstance(token, BitCollection):
                 raise ValueError('token\'s data type does not match')
-            self.public_token = token
+            public_token = token
         
         # Decode from base64.
         elif data_type == 'base64':
-            self.public_token = BitCollection.from_base64(
+            public_token = BitCollection.from_base64(
                     token, url_safe=kwargs.get('url_safe', None))
         
         # Decode from bytes.
         elif data_type == 'bytes':
-            self.public_token = BitCollection.from_bytes(token)
+            public_token = BitCollection.from_bytes(token)
         
         # Decode from hex.
         elif data_type == 'hex':
-            self.public_token = BitCollection.from_hex(token)
+            public_token = BitCollection.from_hex(token)
         
         # Decode from int.
         elif data_type == 'int':
-            self.public_token = BitCollection.from_int(token)
+            public_token = BitCollection.from_int(token)
         
         # Decode from str.
         elif data_type == 'str':
-            self.public_token = BitCollection.from_str(
+            public_token = BitCollection.from_str(
                     token, codec=kwargs.get('codec', None))
         
         # Invalid type.
@@ -480,15 +494,17 @@ class Token:
             raise ValueError('invalid data_type')
         
         # Validate the token by its length.
-        if self.public_token_bit_length() != self.public_token.length:
+        if self.public_token_bit_length() != public_token.length:
             return False
         
         # Setup the stored token.
-        self.stored_token = copy.deepcopy(self.public_token)
+        stored_token = copy.deepcopy(public_token)
         
         # Are there layers?
         if not self.layers:
-            return self.public_results
+            return TokenResult(
+                    public_token=public_token,
+                    private_token=stored_token)
         
         # Setup for peeling away layers.
         stored_layers = []
@@ -511,31 +527,34 @@ class Token:
                 layer_seed_seed = seed_sources.pop()
                 seed_positions = self.generate_bit_positions(
                         seed=layer_seed_seed,
-                        max_position=self.stored_token.length - self.seed_bits,
+                        max_position=stored_token.length - self.seed_bits,
                         bits=self.seed_bits)
                 
                 # Extract in the seed bits.
-                layer_seed_value = self.stored_token.extract_int(
+                layer_seed_value = stored_token.extract_int(
                         positions=seed_positions[::-1])
                 
                 # Generate the layer positions using the seed.
                 layer_positions = self.generate_bit_positions(
                         seed=layer_seed_value,
-                        max_position=self.stored_token.length - layer.bits,
+                        max_position=stored_token.length - layer.bits,
                         bits=layer.bits)
                 
             # Get the layer value from the token based on format.
-            layer_value = self.stored_token.extract(
+            layer_value = stored_token.extract(
                     positions=layer_positions[::-1])
             
             # Store the value away as its original datatype.
             stored_layers.append(layer.from_bitcollection(layer_value))
         
         # Reverse the stored_layers in order to match how layers are added.
-        self.stored_layers = stored_layers[::-1]
+        stored_layers = stored_layers[::-1]
         
         # All done!
-        return self.public_results
+        return TokenResult(
+                public_token=public_token,
+                private_token=private_token,
+                layers=stored_layers)
     
     
     def public_token_bit_length(self):
