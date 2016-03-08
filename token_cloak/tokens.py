@@ -27,9 +27,6 @@ class TokenLayer:
     def __init__(self, d):
         """Takes a dictionary of settings and ingests it as a layer."""
         
-        # Setup variable for later.
-        self.value = None
-        
         # Must be a dictionary.
         if not isinstance(d, dict):
             raise ConfigError('layers must each be a dict')
@@ -181,8 +178,6 @@ class TokenLayer:
     
     def from_bitcollection(self, b):
         """Convert to original format."""
-        if not self.value:
-            return None
         if self.type == 'int':
             return b.to_int()
         if self.type == 'bytes':
