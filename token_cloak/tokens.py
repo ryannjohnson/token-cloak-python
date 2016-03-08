@@ -69,11 +69,11 @@ class TokenLayer:
         # Hex are 16 bits per character.
         elif self.type == 'hex':
             if self.bits:
-                if (self.bits % 16) != 0:
+                if (self.bits % 4) != 0:
                     raise ConfigError('layer hex bits must be divisible by 16')
-                self.length = self.bits // 16
+                self.length = self.bits // 4
             else:
-                self.bits = self.length * 16
+                self.bits = self.length * 4
         
         # Base64 are 24 bits per 3 characters.
         elif self.type == 'base64':
