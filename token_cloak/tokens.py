@@ -93,7 +93,7 @@ class TokenLayer:
                     raise ConfigError(err)
             
             # Do the number of positions match the number of bits?
-            if len(poisitions) != self.bits:
+            if len(positions) != self.bits:
                 raise ConfigError('number of layer positions must match bits')
             
             # Positions is valid
@@ -314,7 +314,7 @@ class Token:
         # Ensure the input matches
         stored_token = None
         if len(args) != len(self.layers):
-            print('moose')
+            
             # Is there not just one more than before?
             if len(args) != (len(self.layers) + 1):
                 err = 'number of args doesn\'t match number of layers'

@@ -60,6 +60,7 @@ class TestToken:
         second = token.decode(first.public_token)
         assert first.private_token.to_int() == second.private_token.to_int()
         assert second.layers[0] == 5
+        assert second.public_token.length() == 44
     
     def test_bytes_layer_bits(self):
         self.config["layers"] = [
@@ -116,3 +117,19 @@ class TestToken:
         second = token.decode(first.public_token)
         assert first.private_token.to_int() == second.private_token.to_int()
         assert second.layers[0] == s
+    
+    def test_int_layer_positions(self):
+        self.config["layers"] = [
+            {
+                "type": "int",
+                "bits": 8,
+                "positions": [4,7,9,2,4,5,1,7],
+            }
+        ]
+        token = Token(self.config)
+        first = token.encode(5)
+        second = token.decode(first.public_token)
+        assert first.private_token.to_int() == second.private_token.to_int()
+        assert second.layers[0] == 5
+        assert second.public_token.length() == 40
+    
