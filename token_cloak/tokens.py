@@ -224,7 +224,7 @@ class Token:
         self.seed_bits = 4
         
         # What should the random token look like?
-        self.stored_token_bits = 512
+        self.stored_token_bits = 0
         
         # Values getting spliced into the public token.
         self.layers = []
@@ -264,7 +264,7 @@ class Token:
         
         # Determines the length of stored token.
         self.stored_token = None
-        self.stored_token_bits = None
+        self.stored_token_bits = 0
         random_bits = config.get('random_bits', None)
         if random_bits:
             
@@ -314,7 +314,7 @@ class Token:
         # Ensure the input matches
         stored_token = None
         if len(args) != len(self.layers):
-            
+            print('moose')
             # Is there not just one more than before?
             if len(args) != (len(self.layers) + 1):
                 err = 'number of args doesn\'t match number of layers'
@@ -332,8 +332,8 @@ class Token:
                 raise ValueError(err)
             
             # Adjust the args for proper use.
-            args = args[1:]
-        
+            args = tuple(list(args)[1:])
+        print(args)
         # Generate a new stored token.
         if not stored_token:
             if self.stored_token_bits and self.stored_token_bits > 0:
