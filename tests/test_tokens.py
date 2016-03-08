@@ -1,6 +1,5 @@
 from token_cloak import BitCollection, Token
 
-
 class TestToken:
     
     def setup_method(cls, method):
@@ -57,7 +56,7 @@ class TestToken:
         ]
         token = Token(self.config)
         first = token.encode(5)
-        second = token.decode(first.public_token)
+        second = token.decode(first.public_token.to_int(), data_type='int')
         assert first.private_token.to_int() == second.private_token.to_int()
         assert second.layers[0] == 5
         assert second.public_token.length() == 44
@@ -72,7 +71,7 @@ class TestToken:
         token = Token(self.config)
         bytes_ = "turtles!".encode('ascii')
         first = token.encode(bytes_)
-        second = token.decode(first.public_token)
+        second = token.decode(first.public_token.to_bytes(), data_type='bytes')
         assert first.private_token.to_int() == second.private_token.to_int()
         assert second.layers[0] == bytes_
     
@@ -85,8 +84,9 @@ class TestToken:
         ]
         token = Token(self.config)
         bytes_ = "turtles!".encode('ascii')
+        a = BitCollection.from_bytes(bytes_)
         first = token.encode(bytes_)
-        second = token.decode(first.public_token)
+        second = token.decode(first.public_token.to_bytes(), data_type='bytes')
         assert first.private_token.to_int() == second.private_token.to_int()
         assert second.layers[0] == bytes_
     

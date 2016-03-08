@@ -5,9 +5,9 @@ import hashlib
 
 from .exceptions import ConfigError
 from .utils import (
-        base64_to_bitarray, bitarray_to_base64, bitarray_to_hex,
-        bitarray_to_int, bitarray_to_str, hex_to_bitarray, int_to_bitarray,
-        str_to_bitarray)
+        base64_to_bitarray, bitarray_to_base64, bitarray_to_bytes,
+        bitarray_to_hex, bitarray_to_int, bitarray_to_str, bytes_to_bitarray,
+        hex_to_bitarray, int_to_bitarray, str_to_bitarray)
 
 
 class BitCollection:
@@ -62,9 +62,7 @@ class BitCollection:
             BitCollection: new instance.
         
         """
-        a = bitarray()
-        a.frombytes(b)
-        return cls(a)
+        return cls(bytes_to_bitarray(b))
     
     
     @classmethod
@@ -167,7 +165,7 @@ class BitCollection:
         bits = self.extract_bitarray(positions=positions)
         
         # Convert to bytes
-        return bits.tobytes()
+        return bitarray_to_bytes(bits)
     
     
     def extract_int(self, positions):
@@ -364,6 +362,13 @@ class BitCollection:
         if not self.content:
             return 0
         return self.content.length()
+    
+    
+    def pop(self, index=None):
+        """Pop the last value off the bitarray."""
+        if not index:
+            index = self.length() - 1
+        return self.content.pop(index)
     
     
     def to_base64(self, url_safe=False):

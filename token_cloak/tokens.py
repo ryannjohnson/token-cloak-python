@@ -1,4 +1,5 @@
 import base64
+import binascii
 import copy
 import os
 import random
@@ -229,7 +230,7 @@ class Token:
         # Values getting spliced into the public token.
         self.layers = []
         
-        # Is loads here?
+        # Is config here?
         self.config = {}
         if config:
             self.set_config(config)
@@ -333,7 +334,7 @@ class Token:
             
             # Adjust the args for proper use.
             args = tuple(list(args)[1:])
-        print(args)
+        
         # Generate a new stored token.
         if not stored_token:
             if self.stored_token_bits and self.stored_token_bits > 0:
@@ -423,12 +424,16 @@ class Token:
                 data level. Optional if not string or if in config.
         
         Returns:
-            If successful, dict. Otherwise, False.
+            If successful, dict. Otherwise, None.
         
         """
         # Get data_type from somewhere else.
         if not data_type:
             data_type = self.config.get('public_token_type', None)
+        
+        # Start with the expected length.
+        expected_length = self.public_token_bit_length()
+        bit_remainder = 0
         
         # Put the token into a BitCollection based on data_type.
         if not data_type:
@@ -438,33 +443,49 @@ class Token:
         
         # Decode from base64.
         elif data_type == 'base64':
-            public_token = BitCollection.from_base64(
-                    token, url_safe=kwargs.get('url_safe', None))
+            try:
+                public_token = BitCollection.from_base64(
+                        token, url_safe=kwargs.get('url_safe', None))
+            except binascii.Error:
+                return None
+            bit_remainder = expected_length % 6
         
         # Decode from bytes.
         elif data_type == 'bytes':
             public_token = BitCollection.from_bytes(token)
+            bit_remainder = expected_length % 8
         
         # Decode from hex.
         elif data_type == 'hex':
             public_token = BitCollection.from_hex(token)
+            bit_remainder = expected_length % 4
         
         # Decode from int.
         elif data_type == 'int':
-            public_token = BitCollection.from_int(token)
+            if token.bit_length() > self.public_token_bit_length():
+                return None
+            public_token = BitCollection.from_int(
+                    token, bits=self.public_token_bit_length())
         
         # Decode from str.
         elif data_type == 'str':
             public_token = BitCollection.from_str(
                     token, codec=kwargs.get('codec', None))
+            sample_byte = 'a'.encode(kwargs.get('codec', None))
+            bit_remainder = expected_length % (sample_byte * 8)
         
         # Invalid type.
         else:
             raise ValueError('invalid data_type')
         
+        # Adjust if a remainder exists.
+        for i in range(bit_remainder):
+            public_token.pop()
+        
         # Validate the token by its length.
-        if self.public_token_bit_length() != public_token.length():
-            return False
+        if expected_length != public_token.length():
+            print('Lengths:', public_token.length(), self.public_token_bit_length())
+            return None
         
         # Setup the stored token.
         stored_token = copy.deepcopy(public_token)
