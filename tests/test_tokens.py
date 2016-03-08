@@ -5,7 +5,7 @@ class TestToken:
     def setup_method(cls, method):
         cls.config = {
             "secret_key": "music makes me lose control",
-            "random_bits": 32,
+            "random_bits": 31,
             "seed_bits": 4,
         }
     
@@ -27,12 +27,19 @@ class TestToken:
         assert 7 == second.layers[0]
     
     def test_custom_token(self):
+        self.config["random_bits"] = 31
         i = 634543
-        b = BitCollection.from_int(i, bits=32)
+        b = BitCollection.from_int(i, bits=31)
         token = Token(self.config)
         first = token.encode(b)
         second = token.decode(first.public_token)
         assert i == second.private_token.to_int()
+    
+    def test_base64_token(self):
+        token = Token(self.config)
+        first = token.encode()
+        second = token.decode(first.public_token.to_base64(), data_type='base64')
+        assert second.private_token.to_int() == first.private_token.to_int()
     
     def test_bitcollection_layer(self):
         self.config["layers"] = [
@@ -59,7 +66,7 @@ class TestToken:
         second = token.decode(first.public_token.to_int(), data_type='int')
         assert first.private_token.to_int() == second.private_token.to_int()
         assert second.layers[0] == 5
-        assert second.public_token.length() == 44
+        assert second.public_token.length() == self.config["random_bits"] + 12
     
     def test_bytes_layer_bits(self):
         self.config["layers"] = [
@@ -131,5 +138,5 @@ class TestToken:
         second = token.decode(first.public_token)
         assert first.private_token.to_int() == second.private_token.to_int()
         assert second.layers[0] == 5
-        assert second.public_token.length() == 40
+        assert second.public_token.length() == self.config["random_bits"] + 8
     

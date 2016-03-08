@@ -264,14 +264,13 @@ class Token:
         self.secret_key_collection = SecretKeyCollection(self.secret_key)
         
         # Determines the length of stored token.
-        self.stored_token = None
         self.stored_token_bits = 0
         random_bits = config.get('random_bits', None)
         if random_bits:
             
             # Is it a direct injection?
             if isinstance(random_bits, BitCollection):
-                self.stored_token_bits = self.stored_token.length
+                self.stored_token_bits = random_bits
             
             # Is it just a length for random generation?
             else:
@@ -338,8 +337,15 @@ class Token:
         # Generate a new stored token.
         if not stored_token:
             if self.stored_token_bits and self.stored_token_bits > 0:
-                bytes_ = os.urandom(self.stored_token_bits // 8)
+                bits = self.stored_token_bits
+                mod = bits % 8
+                if mod:
+                    bits += (8 - mod)
+                bytes_ = os.urandom(bits // 8)
                 stored_token = BitCollection.from_bytes(bytes_)
+                if mod:
+                    for i in range(8 - mod):
+                        stored_token.pop()
             else:
                 stored_token = BitCollection()
         
@@ -448,17 +454,18 @@ class Token:
                         token, url_safe=kwargs.get('url_safe', None))
             except binascii.Error:
                 return None
-            bit_remainder = expected_length % 6
+            # bit_remainder = expected_length % 6
         
         # Decode from bytes.
         elif data_type == 'bytes':
             public_token = BitCollection.from_bytes(token)
-            bit_remainder = expected_length % 8
+            print(public_token.length())
+            bit_remainder = 8 - (expected_length % 8)
         
         # Decode from hex.
         elif data_type == 'hex':
             public_token = BitCollection.from_hex(token)
-            bit_remainder = expected_length % 4
+            bit_remainder = 4 - (expected_length % 4)
         
         # Decode from int.
         elif data_type == 'int':
@@ -472,7 +479,8 @@ class Token:
             public_token = BitCollection.from_str(
                     token, codec=kwargs.get('codec', None))
             sample_byte = 'a'.encode(kwargs.get('codec', None))
-            bit_remainder = expected_length % (sample_byte * 8)
+            b2 = sample_byte * 8
+            bit_remainder = b2 - (expected_length % b2)
         
         # Invalid type.
         else:
@@ -484,7 +492,8 @@ class Token:
         
         # Validate the token by its length.
         if expected_length != public_token.length():
-            print('Lengths:', public_token.length(), self.public_token_bit_length())
+            print('Expected length:', expected_length)
+            print('Token length:', public_token.length())
             return None
         
         # Setup the stored token.
