@@ -2,15 +2,15 @@ from token_cloak import BitCollection, Token
 
 class TestToken:
     
-    def setup_method(cls, method):
-        cls.config = {
+    def setup_method(self, method):
+        self.config = {
             "secret_key": "music makes me lose control",
-            "random_bits": 31,
+            "random_bits": 123,
             "seed_bits": 4,
         }
     
-    def teardown_method(cls, method):
-        cls.config = {}
+    def teardown_method(self, method):
+        pass
     
     def test_no_token(self):
         del self.config["random_bits"]
@@ -38,7 +38,8 @@ class TestToken:
     def test_base64_token(self):
         token = Token(self.config)
         first = token.encode()
-        second = token.decode(first.public_token.to_base64(), data_type='base64')
+        second = token.decode(
+                first.public_token.to_base64().rstrip('='), data_type='base64')
         assert second.private_token.to_int() == first.private_token.to_int()
     
     def test_bitcollection_layer(self):
@@ -101,11 +102,11 @@ class TestToken:
         self.config["layers"] = [
             {
                 "type": "hex",
-                "bits": 28,
+                "bits": 32,
             }
         ]
         token = Token(self.config)
-        s = "af93287"
+        s = "af932878"
         first = token.encode(s)
         second = token.decode(first.public_token)
         assert first.private_token.to_int() == second.private_token.to_int()

@@ -454,18 +454,18 @@ class Token:
                         token, url_safe=kwargs.get('url_safe', None))
             except binascii.Error:
                 return None
-            # bit_remainder = expected_length % 6
+            bit_remainder = self.remainder_by_divisor(expected_length, 8)
         
         # Decode from bytes.
         elif data_type == 'bytes':
             public_token = BitCollection.from_bytes(token)
             print(public_token.length())
-            bit_remainder = 8 - (expected_length % 8)
+            bit_remainder = self.remainder_by_divisor(expected_length, 8)
         
         # Decode from hex.
         elif data_type == 'hex':
             public_token = BitCollection.from_hex(token)
-            bit_remainder = 4 - (expected_length % 4)
+            bit_remainder = self.remainder_by_divisor(expected_length, 4)
         
         # Decode from int.
         elif data_type == 'int':
@@ -473,14 +473,6 @@ class Token:
                 return None
             public_token = BitCollection.from_int(
                     token, bits=self.public_token_bit_length())
-        
-        # Decode from str.
-        elif data_type == 'str':
-            public_token = BitCollection.from_str(
-                    token, codec=kwargs.get('codec', None))
-            sample_byte = 'a'.encode(kwargs.get('codec', None))
-            b2 = sample_byte * 8
-            bit_remainder = b2 - (expected_length % b2)
         
         # Invalid type.
         else:
@@ -593,6 +585,31 @@ class Token:
         # Return the tally
         return total_bits
         
+    
+    @staticmethod
+    def remainder_by_divisor(expected, divisor):
+        """Shortcut to get the remainder from the expected length.
+        
+        Since several input formats are chunked in even, multi-bit
+        blocks, sometimes ending bits need to be sliced off in order to
+        reproduce the original token.
+        
+        The resulting remainder is that number of bits.
+        
+        Args:
+            expected (int): Length of expected public token.
+            divisor (int): Multible by which the input data format is
+                chunked by.
+        
+        Returns:
+            int: from 0 to divisor - 1.
+        
+        """
+        mod = expected % divisor
+        if mod:
+            return divisor - mod
+        return 0
+    
     
     @staticmethod
     def generate_bit_positions(seed, max_position, bits):
