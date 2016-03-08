@@ -261,6 +261,7 @@ class Token:
         self.stored_token = None
         
         # Is loads here?
+        self.config = {}
         if config:
             self.config(config)
         
@@ -272,6 +273,9 @@ class Token:
             ConfigError: layers must be lists or ints.
         
         """
+        # Keep this config.
+        self.config = config
+        
         # Ingest the secret used to seed everything.
         secret = config.get('secret_key', None)
         if secret:
@@ -289,7 +293,8 @@ class Token:
         # Get the secret key collection going.
         self.secret_key_collection = SecretKeyCollection(self.secret_key)
         
-        # Determines the length of random token.
+        # Determines the length of stored token.
+        self.stored_token = None
         random_bits = config.get('random_bits', None)
         if random_bits:
             
@@ -299,6 +304,7 @@ class Token:
             # Is it a direct injection?
             if isinstance(random_bits, BitCollection):
                 self.stored_token = random_bits
+                self.stored_token_bits = self.stored_token.length
             
             # Is it just a length for random generation?
             else:
@@ -306,9 +312,7 @@ class Token:
                     raise ConfigError('random bits must be a non-negative int')
                 
                 # Generate the token now
-                if random_bits > 0:
-                    bytes_ = os.urandom(random_bits // 8)
-                    self.stored_token = BitCollection.from_bytes(bytes_)
+                self.stored_token_bits = random_bits
         
         # Determines how many possible seeds there can be.
         seed_bits = config.get('seed_bits', None)
@@ -323,7 +327,7 @@ class Token:
             if not isinstance(config.get('layers'), list):
                 raise ConfigError('layers must be a list')
             
-            # Ingest layers as TokenLayers
+            # Ingest layers as TokenLayers.
             for row in config.get('layers'):
                 self.layers.append(TokenLayer(row)) # Raises ConfigError
     
@@ -341,6 +345,13 @@ class Token:
             ConfigError: number of args doesn't match number of layers.
         
         """
+        # Generate a new stored token.
+        if self.stored_token_bits > 0:
+            bytes_ = os.urandom(self.stored_token_bits // 8)
+            self.stored_token = BitCollection.from_bytes(bytes_)
+        else:
+            self.stored_token = BitCollection()
+        
         # Start the new public token.
         self.public_token = copy.deepcopy(self.stored_token)
         
@@ -406,7 +417,7 @@ class Token:
         return self
     
     
-    def decode(self, token):
+    def decode(self, token, data_type=None):
         """Decode a token created by this class.
         
         For accurate decoding, it is essential that the input
@@ -418,24 +429,23 @@ class Token:
         
         Args:
             token (str): Base64 encoded public token.
+            data_type (Optional[str]): How the token is encoded on a
+                data level. Optional if not string or if in config.
         
         Returns:
-            int: Stored token from the public token.
-            *mixed: N number of layers as is denoted by the config.
-            
-            Tuple of None as long as N+1 if token is invalid.
-        
-        Note:
-            The working_token padding is left on the token until the
-            end of the decoding process. This is intentional so that
-            the meaningful bit positions are preserved until the very
-            end.
+            If successful, dict. Otherwise, False.
         
         """
-        # Prepare for failure
-        none = tuple([None for i in range(len(self.layers)+1)])
-        if len(none) == 1:
-            none = None
+        # How is the incoming public token encoded?
+        if data_type:
+            types = ['base64','bytes','hex','int','str']
+            if data_type not in types:
+                err = 'data type is not in %s' % ', '.join(types)
+                raise ValueError(err)
+        
+        # Get data_type from somewhere else.
+        else:
+            data_type = self.config.get('public_token_encoding', None)
         
         # Validate the token on a baseline level
         length_with_pad = self.public_token_bit_length(with_padding=True)
@@ -583,9 +593,16 @@ class Token:
         return (self.stored_token,) + tuple(values)
     
     
-    def public_token_bit_length(self, with_padding=True):
+    def public_token_bit_length(self, with_padding=None):
         """
         Helper function to calculate supposed bit length for token.
+        
+        Args:
+            with_padding (Optional[str]): Data type to pad for.
+        
+        Returns:
+            int: number of bits expected for the public token.
+        
         """
         # How many random bits are there?
         total_bits = self.random_bits
@@ -595,10 +612,11 @@ class Token:
             for layer in self.layers:
                 
                 # Add bits for included seed
-                total_bits += self.seed_bits
+                if not layer.positions:
+                    total_bits += self.seed_bits
                 
                 # Add the number of bits the actual value can be
-                total_bits += layer[0]
+                total_bits += layer.bits
         
         # Pad it?
         if with_padding:
