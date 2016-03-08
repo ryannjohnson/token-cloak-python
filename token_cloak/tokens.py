@@ -260,6 +260,9 @@ class Token:
         self.public_token = None
         self.stored_token = None
         
+        # Place to hold the layer content.
+        self.stored_layers = []
+        
         # Is loads here?
         self.config = {}
         if config:
@@ -377,13 +380,14 @@ class Token:
             seed_sources = seed_sources[::-1]
         
         # Go through each layer in order
+        self.stored_layers = []
         for index, layer in enumerate(self.layers):
             
             # Does this layer have positions?
             layer_seed_seed = None
             layer_seed_value = None
             layer_positions = layer.positions
-            if not positions:
+            if not layer_positions:
                 
                 # Get the seed prepared.
                 layer_seed_seed = seed_sources.pop()
@@ -400,8 +404,11 @@ class Token:
                     layer.to_bitcollection(
                             args[index]), positions=layer_positions)
             
+            # Save the content.
+            self.stored_layers.append(args[index])
+            
             # Was there an automatic seed?
-            if layer_seed_seed and layer_seed_value:
+            if layer_seed_seed:
                 
                 # Generate the seed positions.
                 seed_positions = self.generate_bit_positions(
@@ -417,7 +424,7 @@ class Token:
         return self
     
     
-    def decode(self, token, data_type=None):
+    def decode(self, token, data_type=None, **kwargs):
         """Decode a token created by this class.
         
         For accurate decoding, it is essential that the input
@@ -436,164 +443,102 @@ class Token:
             If successful, dict. Otherwise, False.
         
         """
-        # How is the incoming public token encoded?
-        if data_type:
-            types = ['base64','bytes','hex','int','str']
-            if data_type not in types:
-                err = 'data type is not in %s' % ', '.join(types)
-                raise ValueError(err)
-        
         # Get data_type from somewhere else.
-        else:
+        if not data_type:
             data_type = self.config.get('public_token_encoding', None)
         
-        # Validate the token on a baseline level
-        length_with_pad = self.public_token_bit_length(with_padding=True)
-        working_length = self.public_token_bit_length(with_padding=False)
-        self.actual_length = working_length
-        working_token = self.decode_b64(token, bit_length=length_with_pad)
-        if not working_token:
-            return none
+        # Put the token into a BitCollection based on data_type.
+        if not data_type:
+            if not isinstance(token, BitCollection):
+                raise ValueError('token\'s data type does not match')
+            self.public_token = token
         
-        # No layers?
+        # Decode from base64.
+        elif data_type == 'base64':
+            self.public_token = BitCollection.from_base64(
+                    token, url_safe=kwargs.get('url_safe', None))
+        
+        # Decode from bytes.
+        elif data_type == 'bytes':
+            self.public_token = BitCollection.from_bytes(token)
+        
+        # Decode from hex.
+        elif data_type == 'hex':
+            self.public_token = BitCollection.from_hex(token)
+        
+        # Decode from int.
+        elif data_type == 'int':
+            self.public_token = BitCollection.from_int(token)
+        
+        # Decode from str.
+        elif data_type == 'str':
+            self.public_token = BitCollection.from_str(
+                    token, codec=kwargs.get('codec', None))
+        
+        # Invalid type.
+        else:
+            raise ValueError('invalid data_type')
+        
+        # Validate the token by its length.
+        if self.public_token_bit_length() != self.public_token.length:
+            return False
+        
+        # Setup the stored token.
+        self.stored_token = copy.deepcopy(self.public_token)
+        
+        # Are there layers?
         if not self.layers:
+            return self.public_results
+        
+        # Setup for peeling away layers.
+        stored_layers = []
+        seed_sources = []
+        if need_seeds > 0:
+            for chunk in self.secret_key_collection.chunk(need_seeds):
+                seed_sources.append(chunk)
+            seed_sources = seed_sources
+        
+        # Start off with the layers!
+        for index, layer in enumerate(self.layers[::-1]):
             
-            # Remove the padding
-            working_token &= (1 << working_length) - 1
+            # Does it have a seeded position?
+            layer_seed_seed = None
+            layer_seed_value = None
+            layer_positions = layer.positions
+            if not layer_positions:
+                
+                # Get the seed from the token.
+                layer_seed_seed = seed_sources.pop()
+                seed_positions = self.generate_bit_positions(
+                        seed=layer_seed_seed,
+                        max_position=self.stored_token.length - self.seed_bits,
+                        bits=self.seed_bits)
+                
+                # Extract in the seed bits.
+                layer_seed_value = self.stored_token.extract_int(
+                        positions=seed_positions[::-1])
+                
+                # Generate the layer positions using the seed.
+                layer_positions = self.generate_bit_positions(
+                        seed=layer_seed_value,
+                        max_position=self.stored_token.length - layer.bits,
+                        bits=layer.bits)
+                
+            # Get the layer value from the token based on format.
+            layer_value = self.stored_token.extract(
+                    positions=layer_positions[::-1])
             
-            # Return the single stored token
-            self.stored_token = working_token
-            return self.stored_token
+            # Store the value away as its original datatype.
+            stored_layers.append(layer.from_bitcollection(layer_value))
         
-        # Get the seed bits from the token
-        seed_length = len(self.layers) * self.seed_bits
-        positions = single_iterator_to_list(range(1,(seed_length*2)+1,2))
-        working_token, final_seeds = extract_bits(
-            source=working_token,
-            positions=positions[::-1])
-        working_length -= seed_length
+        # Reverse the stored_layers in order to match how layers are added.
+        self.stored_layers = stored_layers[::-1]
         
-        # Put the seeds into an ordered array
-        seeds = []
-        for i in range(len(self.layers)):
-            offset = i * self.seed_bits
-            mask = 2 ** self.seed_bits - 1
-            seed = (final_seeds & (mask << offset)) >> offset
-            
-            # Make sure the seed is valid
-            seed_value = settings.TOKEN_VERSIONS.get(seed, None)
-            if not seed_value:
-                return none
-            seeds.append((seed, seed_value,))
-        
-        # Iterate through layers and get information
-        extracted_layers = []
-        original_layers = self.layers[::-1]
-        seeds = seeds[::-1]
-        for index, layer in enumerate(original_layers):
-            layer_length = layer[0]
-            
-            # Adjust the working length
-            working_length -= layer_length
-            
-            # Get the extracted bits
-            seed_value = seeds[index][1]
-            positions = self.generate_bit_positions(
-                    seed_value,
-                    max_position=working_length,
-                    bits=layer_length)
-            working_token, extracted = extract_bits(
-                    source=working_token, positions=positions[::-1])
-            
-            # Add to the extracted layers
-            extracted_layers.append((layer_length, extracted,))
-        
-        # Remove the padding
-        working_token &= (1 << working_length) - 1
-        
-        # Set class variables and get ready to close
-        self.stored_token = working_token
-        self.layers = extracted_layers[::-1]
-        return self.unpack()
-        
-    
-    def set_random_bits(self, num=512):
-        """
-        Set the number of random bits that get injected into the token.
-        
-        Since the decoding seeds are built into the front of the
-        resulting token, the number of random bits must be at least
-        as long as the number of injected value bits.
-        """
-        # Cast it to integer
-        num = int(num)
-        
-        # Is it divisible by 8?
-        mod = num % 8
-        if mod:
-            num += (8-mod)
-        
-        # Set it
-        self.random_bits = num
-        return self
+        # All done!
+        return self.public_results
     
     
-    def add_layer(self, bit_length, value=None):
-        """Add a layer of information to encode into the token.
-        
-        Args:
-            bit_length(int): The number of bits to dedicate to this
-                particular value.
-            value (int): The value to hide in the token.
-        
-        """
-        self.layers.append((int(bit_length),value,))
-        return self
-    
-    
-    def pack(self, *args):
-        """
-        Given a configuration, set the values according to the input.
-        
-        Raises:
-            ConfigError: number of args doesn't match number of layers.
-        
-        """
-        # Ensure the input matches
-        if len(args) != len(self.layers):
-            raise ConfigError('number of args doesn\'t match number of layers')
-        
-        # Create new list of tuples
-        new_layers = []
-        i = 0
-        for bits, value in self.layers:
-            new_layers.append((bits, args[i],))
-            i += 1
-        
-        # Update this object's layers
-        self.layers = new_layers
-        
-    
-    def unpack(self):
-        """
-        Get the values from the decoded token as they were inserted.
-        
-        Returns:
-            tuple: Contains all the values from the token, including
-                the stored token as the first value.
-            
-            If decode was unsuccessful, returns tuple of None, as many
-            as were expected on success.
-        
-        """
-        # Get all the expected values
-        values = []
-        for row in self.layers:
-            values.append(row[1])
-        return (self.stored_token,) + tuple(values)
-    
-    
-    def public_token_bit_length(self, with_padding=None):
+    def public_token_bit_length(self):
         """
         Helper function to calculate supposed bit length for token.
         
@@ -605,7 +550,7 @@ class Token:
         
         """
         # How many random bits are there?
-        total_bits = self.random_bits
+        total_bits = self.stored_token_bits
         
         # Do the math for each layer
         if self.layers:
@@ -618,49 +563,8 @@ class Token:
                 # Add the number of bits the actual value can be
                 total_bits += layer.bits
         
-        # Pad it?
-        if with_padding:
-            mod = total_bits % 6
-            if mod:
-                total_bits += (6-mod)
-            
-            # Add an additional 6 now for standardized lengthening
-            total_bits += 6
-        
         # Return the tally
         return total_bits
-        
-    
-    def encode_b64(self, token=None, bit_length=None):
-        """
-        Helper function to both pad the raw token and convert it into a
-        base64 string.
-        
-        If no token is provided, then the internal 'stored_token' is
-        used instead.
-        """
-        if not token:
-            token = self.stored_token
-        if not token:
-            return None
-            
-        # Pad it if necessary
-        if bit_length:
-            baseline = self.actual_length = bit_length
-        else:
-            baseline = self.actual_length
-        mod = baseline % 6
-        if mod:
-            baseline += (6 - mod)
-        
-        # Make the token reach a certain length
-        token |= random.randint(0,63) << baseline
-        token |= 1 << (baseline + 5)
-        
-        # Do the actual encoding
-        self.public_token = int_to_b64(
-                token, url_safe=True, strip_padding=True)
-        return self.public_token, self.stored_token
         
     
     @staticmethod
@@ -689,36 +593,4 @@ class Token:
         
         # Return the list of integers
         return positions
-
-
-    def decode_b64(self, token, bit_length=None):
-        """
-        Runs checks to make sure tokens came from this module.
-        
-        Args:
-            token (str): Raw string from the client.
-            bit_length (Optional[int]): Expected length from the token.
-        
-        Returns:
-            Int token if valid, False otherwise.
-        
-        """
-        # Correct characters?
-        if not token:
-            return False
-        matches = re.match(r'^[a-zA-Z0-9\-_]+$', token)
-        if not matches:
-            return False
-        
-        # Can it be b64 decoded?
-        try:
-            token = b64_to_int(token, url_safe=True)
-        except:
-            return False
-        
-        # Is is the right length?
-        if bit_length and token.bit_length() != bit_length:
-            return False
-        
-        # It passed
-        return token
+    
