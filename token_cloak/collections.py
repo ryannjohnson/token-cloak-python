@@ -183,13 +183,14 @@ class BitCollection:
         """
         # Roll through each position.
         output = 0
+        total = len(positions) - 1
         for j, position in enumerate(positions):
             
             # Get the bit from this collection
             bit = self.content.pop(position)
             
             # Add to the output
-            output |= bit << j
+            output |= bit << (total - j)
         
         # Return the reconstructed integer
         return output
@@ -358,7 +359,6 @@ class BitCollection:
         self.insert_bitarray(bits, positions=positions)
     
     
-    @property
     def length(self):
         """Return the number of bits stored in the object."""
         if not self.content:
