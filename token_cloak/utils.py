@@ -26,7 +26,10 @@ def bitarray_to_base64(b, url_safe=False):
 def bitarray_to_hex(b):
     """Convert a bitarray to a hexidecimal string."""
     bytes_ = b.tobytes()
-    return binascii.hexlify(bytes_).decode('ascii')
+    s = binascii.hexlify(bytes_).decode('ascii')
+    if b.length() % 8 and not (b.length() % 4):
+        return s[:-1]
+    return s
 
 
 def bitarray_to_bytes(b):
@@ -105,9 +108,16 @@ def int_to_bitarray(i, bits):
 
 def hex_to_bitarray(s):
     """Convert hexidecimal string into a bitarray."""
+    padded = False
+    if len(s) % 2:
+        padded = True
+        s += '0'
     bytes_ = binascii.unhexlify(s)
     a = bitarray()
     a.frombytes(bytes_)
+    if padded:
+        for i in range(4):
+            a.pop()
     return a
 
 

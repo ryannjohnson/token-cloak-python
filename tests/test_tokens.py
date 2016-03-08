@@ -94,11 +94,11 @@ class TestToken:
         self.config["layers"] = [
             {
                 "type": "hex",
-                "bits": 32,
+                "bits": 28,
             }
         ]
         token = Token(self.config)
-        s = "af932875"
+        s = "af93287"
         first = token.encode(s)
         second = token.decode(first.public_token)
         assert first.private_token.to_int() == second.private_token.to_int()
@@ -108,11 +108,11 @@ class TestToken:
         self.config["layers"] = [
             {
                 "type": "hex",
-                "length": 8,
+                "length": 7,
             }
         ]
         token = Token(self.config)
-        s = "af932875"
+        s = "af93287"
         first = token.encode(s)
         second = token.decode(first.public_token)
         assert first.private_token.to_int() == second.private_token.to_int()
