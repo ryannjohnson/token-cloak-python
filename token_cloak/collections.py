@@ -62,7 +62,9 @@ class BitCollection:
             BitCollection: new instance.
         
         """
-        return cls(bitarray().frombytes(b))
+        a = bitarray()
+        a.frombytes(b)
+        return cls(a)
     
     
     @classmethod
@@ -288,7 +290,8 @@ class BitCollection:
         
         """
         # Use the bitarray
-        bits = bitarray().frombytes(b)
+        bits = bitarray()
+        bits.frombytes(b)
         
         # Run the bitarray function
         self.insert_bitarray(bits, positions=positions)

@@ -43,15 +43,16 @@ class TokenLayer:
         
         # Init the bits.
         self.bits = d.get('bits', None)
-        if self.bits != None and not isinstance(bits, int):
+        if self.bits != None and not isinstance(self.bits, int):
             raise ConfigError('layer bits key must be a positive int')
         
         # Init the length.
         self.length = d.get('length', None)
-        if not length and not self.bits:
+        if not self.length and not self.bits:
             raise ConfigError('layer bits key must be a positive int')
-        if length and not isinstance(length, int) or length < 1:
-            raise ConfigError('layer length must be a positive int')
+        if self.length:
+            if not isinstance(self.length, int) or self.length < 1:
+                raise ConfigError('layer length must be a positive int')
         
         # Ints require bits.
         if self.type == 'int':
@@ -224,7 +225,7 @@ class Token:
     
     A sample config could be stored as and submitted as the following:
         config = {
-            "secret": "the length of this should be very long",
+            "secret_key": "the length of this should be very long",
             "random_bits": 512,
             "seed_bits": 4,
             "layers": [
@@ -275,10 +276,10 @@ class Token:
         # Is loads here?
         self.config = {}
         if config:
-            self.config(config)
+            self.set_config(config)
         
     
-    def config(self, config):
+    def set_config(self, config):
         """Ingest a config dictionary.
         
         Raises:
@@ -307,15 +308,12 @@ class Token:
         
         # Determines the length of stored token.
         self.stored_token = None
+        self.stored_token_bits = None
         random_bits = config.get('random_bits', None)
         if random_bits:
             
-            # Reset the stored token
-            self.stored_token = None
-            
             # Is it a direct injection?
             if isinstance(random_bits, BitCollection):
-                self.stored_token = random_bits
                 self.stored_token_bits = self.stored_token.length
             
             # Is it just a length for random generation?
@@ -358,7 +356,7 @@ class Token:
         
         """
         # Generate a new stored token.
-        if self.stored_token_bits > 0:
+        if self.stored_token_bits and self.stored_token_bits > 0:
             bytes_ = os.urandom(self.stored_token_bits // 8)
             stored_token = BitCollection.from_bytes(bytes_)
         else:
@@ -377,14 +375,9 @@ class Token:
                     public_token=public_token,
                     private_token=stored_token)
         
-        # How many layers need seeds?
-        need_seeds = 0
-        for layer in self.layers:
-            if not layer.positions:
-                need_seeds += 1
-        
         # Decide on predictable seed positions up front
         seed_sources = []
+        need_seeds = self.needed_seeds()
         if need_seeds > 0:
             for chunk in self.secret_key_collection.chunk(need_seeds):
                 seed_sources.append(chunk)
@@ -509,6 +502,7 @@ class Token:
         # Setup for peeling away layers.
         stored_layers = []
         seed_sources = []
+        need_seeds = self.needed_seeds()
         if need_seeds > 0:
             for chunk in self.secret_key_collection.chunk(need_seeds):
                 seed_sources.append(chunk)
@@ -553,8 +547,17 @@ class Token:
         # All done!
         return TokenResult(
                 public_token=public_token,
-                private_token=private_token,
+                private_token=stored_token,
                 layers=stored_layers)
+    
+    
+    def needed_seeds(self):
+        """Calculates number of layer seeds needed to be generated."""
+        need_seeds = 0
+        for layer in self.layers:
+            if not layer.positions:
+                need_seeds += 1
+        return need_seeds
     
     
     def public_token_bit_length(self):

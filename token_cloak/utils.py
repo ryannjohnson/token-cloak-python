@@ -30,6 +30,8 @@ def bitarray_to_hex(b):
 
 def bitarray_to_int(b):
     """Convert a bitarray to an integer."""
+    if not len(b):
+        return 0
     return int(b.to01(), 2)
 
 
