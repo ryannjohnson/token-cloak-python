@@ -11,8 +11,9 @@ def bitarray_to_base64(b, url_safe=False):
     
     # Convert it to a string
     string = binascii.b2a_base64(bytes_).decode('ascii').rstrip('\n')
-    if strip_padding:
-        string = string.rstrip('=')
+    mod = len(string) % 3
+    if mod:
+        string += '=' * (3 - mod)
     
     # Make it url-safe
     if url_safe:

@@ -81,12 +81,12 @@ class TokenLayer:
                 if (self.bits % 24) != 0:
                     err = 'layer base64 bits must be divisible by 24'
                     raise ConfigError(err)
-                self.length = self.length // 24
+                self.length = self.bits // 6
             else:
                 if (self.length % 3) != 0:
                     err = 'layer base64 length must be divisible by 3'
                     raise ConfigError(err)
-                self.bits = self.length * 24
+                self.bits = self.length * 6
             
             # Set the config for url safe.
             self.config['url_safe'] = self.config.get('url_safe', False)
