@@ -1,4 +1,6 @@
+import random
 from token_cloak import BitCollection, Token
+
 
 class TestToken:
     
@@ -8,136 +10,169 @@ class TestToken:
             "random_bits": 123,
             "seed_bits": 4,
         }
+        self.start = 23
+        self.end = 47
     
     def teardown_method(self, method):
         pass
     
+    @staticmethod
+    def randint(i):
+        return random.randint(0, 2 ** (i - 1))
+    
     def test_no_token(self):
         del self.config["random_bits"]
-        self.config["layers"] = [
-            {
-                "type": "int",
-                "bits": 8,
-            }
-        ]
-        token = Token(self.config)
-        first = token.encode(7)
-        second = token.decode(first.public_token)
-        assert first.private_token.to_int() == second.private_token.to_int()
-        assert 7 == second.layers[0]
+        for i in range(self.start, self.end):
+            self.config["layers"] = [
+                {
+                    "type": "int",
+                    "bits": i,
+                }
+            ]
+            a = self.randint(i)
+            token = Token(self.config)
+            first = token.encode(a)
+            second = token.decode(first.public_token)
+            assert first.private_token.to_int() == second.private_token.to_int()
+            assert a == second.layers[0]
     
     def test_custom_token(self):
-        self.config["random_bits"] = 31
-        i = 634543
-        b = BitCollection.from_int(i, bits=31)
-        token = Token(self.config)
-        first = token.encode(b)
-        second = token.decode(first.public_token)
-        assert i == second.private_token.to_int()
+        for i in range(self.start, self.end):
+            self.config["random_bits"] = i
+            a = self.randint(i)
+            b = BitCollection.from_int(a, bits=i)
+            token = Token(self.config)
+            first = token.encode(b)
+            second = token.decode(first.public_token)
+            assert a == second.private_token.to_int()
     
     def test_base64_token(self):
-        token = Token(self.config)
-        first = token.encode()
-        second = token.decode(
-                first.public_token.to_base64().rstrip('='), data_type='base64')
-        assert second.private_token.to_int() == first.private_token.to_int()
+        for i in range(self.start, self.end):
+            self.config["random_bits"] = i
+            token = Token(self.config)
+            first = token.encode()
+            second = token.decode(
+                    first.public_token.to_base64().rstrip('='),
+                    data_type='base64')
+            assert second.private_token.to_int() == first.private_token.to_int()
     
     def test_bitcollection_layer(self):
-        self.config["layers"] = [
-            {
-                "type": "BitCollection",
-                "bits": 8,
-            }
-        ]
-        token = Token(self.config)
-        b = BitCollection.from_int(7, bits=8)
-        first = token.encode(b)
-        second = token.decode(first.public_token)
-        assert first.private_token.to_int() == second.private_token.to_int()
+        for i in range(self.start, self.end):
+            self.config["layers"] = [
+                {
+                    "type": "BitCollection",
+                    "bits": i,
+                },
+            ]
+            token = Token(self.config)
+            b = BitCollection.from_int(self.randint(i), bits=i)
+            first = token.encode(b)
+            second = token.decode(first.public_token)
+            assert first.private_token.to_int() == second.private_token.to_int()
     
     def test_int_layer(self):
-        self.config["layers"] = [
-            {
-                "type": "int",
-                "bits": 8,
-            }
-        ]
-        token = Token(self.config)
-        first = token.encode(5)
-        second = token.decode(first.public_token.to_int(), data_type='int')
-        assert first.private_token.to_int() == second.private_token.to_int()
-        assert second.layers[0] == 5
-        assert second.public_token.length() == self.config["random_bits"] + 12
+        for i in range(self.start, self.end):
+            self.config["layers"] = [
+                {
+                    "type": "int",
+                    "bits": i,
+                },
+            ]
+            a = self.randint(i)
+            token = Token(self.config)
+            first = token.encode(a)
+            second = token.decode(first.public_token.to_int(), data_type='int')
+            assert first.private_token.to_int() == second.private_token.to_int()
+            assert second.layers[0] == a
+            assert second.public_token.length() == self.config["random_bits"] + i+4
     
     def test_bytes_layer_bits(self):
-        self.config["layers"] = [
-            {
-                "type": "bytes",
-                "bits": 64,
-            }
-        ]
-        token = Token(self.config)
-        bytes_ = "turtles!".encode('ascii')
-        first = token.encode(bytes_)
-        second = token.decode(first.public_token.to_bytes(), data_type='bytes')
-        assert first.private_token.to_int() == second.private_token.to_int()
-        assert second.layers[0] == bytes_
+        for i in range(self.start, self.end):
+            self.config["layers"] = [
+                {
+                    "type": "bytes",
+                    "bits": i * 8,
+                },
+            ]
+            bytes_ = bytes()
+            for j in range(i):
+                bytes_ += bytes([random.randint(0, 2 ** (8 - 1))])
+            print(i, bytes_)
+            token = Token(self.config)
+            first = token.encode(bytes_)
+            second = token.decode(first.public_token.to_bytes(), data_type='bytes')
+            assert first.private_token.to_int() == second.private_token.to_int()
+            assert second.layers[0] == bytes_
     
     def test_bytes_layer_length(self):
-        self.config["layers"] = [
-            {
-                "type": "bytes",
-                "length": 8,
-            }
-        ]
-        token = Token(self.config)
-        bytes_ = "turtles!".encode('ascii')
-        a = BitCollection.from_bytes(bytes_)
-        first = token.encode(bytes_)
-        second = token.decode(first.public_token.to_bytes(), data_type='bytes')
-        assert first.private_token.to_int() == second.private_token.to_int()
-        assert second.layers[0] == bytes_
+        for i in range(self.start, self.end):
+            self.config["layers"] = [
+                {
+                    "type": "bytes",
+                    "length": i,
+                },
+            ]
+            token = Token(self.config)
+            bytes_ = bytes()
+            for j in range(i):
+                bytes_ += bytes([random.randint(0, 2 ** (8 - 1))])
+            a = BitCollection.from_bytes(bytes_)
+            first = token.encode(bytes_)
+            second = token.decode(first.public_token.to_bytes(), data_type='bytes')
+            assert first.private_token.to_int() == second.private_token.to_int()
+            assert second.layers[0] == bytes_
     
     def test_hex_layer_bits(self):
-        self.config["layers"] = [
-            {
-                "type": "hex",
-                "bits": 32,
-            }
-        ]
-        token = Token(self.config)
-        s = "af932878"
-        first = token.encode(s)
-        second = token.decode(first.public_token)
-        assert first.private_token.to_int() == second.private_token.to_int()
-        assert second.layers[0] == s
+        for i in range(self.start, self.end):
+            self.config["layers"] = [
+                {
+                    "type": "hex",
+                    "bits": i * 4,
+                },
+            ]
+            token = Token(self.config)
+            s = ""
+            for j in range(i):
+                s += "0123456789abcdef"[random.randint(0,15)]
+            first = token.encode(s)
+            second = token.decode(first.public_token)
+            assert first.private_token.to_int() == second.private_token.to_int()
+            assert second.layers[0] == s
     
     def test_hex_layer_length(self):
-        self.config["layers"] = [
-            {
-                "type": "hex",
-                "length": 7,
-            }
-        ]
-        token = Token(self.config)
-        s = "af93287"
-        first = token.encode(s)
-        second = token.decode(first.public_token)
-        assert first.private_token.to_int() == second.private_token.to_int()
-        assert second.layers[0] == s
+        for i in range(self.start, self.end):
+            self.config["layers"] = [
+                {
+                    "type": "hex",
+                    "length": i,
+                },
+            ]
+            token = Token(self.config)
+            s = ""
+            for j in range(i):
+                s += "0123456789abcdef"[random.randint(0,15)]
+            first = token.encode(s)
+            second = token.decode(first.public_token)
+            assert first.private_token.to_int() == second.private_token.to_int()
+            assert second.layers[0] == s
     
     def test_int_layer_positions(self):
-        self.config["layers"] = [
-            {
-                "type": "int",
-                "bits": 8,
-                "positions": [4,7,9,2,4,5,1,7],
-            }
-        ]
-        token = Token(self.config)
-        first = token.encode(5)
-        second = token.decode(first.public_token)
-        assert first.private_token.to_int() == second.private_token.to_int()
-        assert second.layers[0] == 5
-        assert second.public_token.length() == self.config["random_bits"] + 8
+        for i in range(self.start, self.end):
+            positions = []
+            for j in range(i):
+                positions.append(random.randint(0, i + j))
+            self.config["layers"] = [
+                {
+                    "type": "int",
+                    "bits": i,
+                    "positions": positions,
+                },
+            ]
+            a = self.randint(i)
+            token = Token(self.config)
+            first = token.encode(a)
+            second = token.decode(first.public_token)
+            assert first.private_token.to_int() == second.private_token.to_int()
+            assert second.layers[0] == a
+            assert second.public_token.length() == self.config["random_bits"] + i
     
