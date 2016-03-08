@@ -1,4 +1,4 @@
-from token_cloak import Token
+from token_cloak import BitCollection, Token
 
 
 class TestToken:
@@ -14,6 +14,19 @@ class TestToken:
     @classmethod
     def teardown_class(cls):
         cls.config = {}
+    
+    def test_bitcollection_layer(self):
+        self.config["layers"] = [
+            {
+                "type": "BitCollection",
+                "bits": 8,
+            }
+        ]
+        token = Token(self.config)
+        b = BitCollection.from_int(7, bits=8)
+        first = token.encode(b)
+        second = token.decode(first.public_token)
+        assert first.private_token.to_int() == second.private_token.to_int()
     
     def test_int_layer(self):
         self.config["layers"] = [
@@ -83,33 +96,3 @@ class TestToken:
         second = token.decode(first.public_token)
         assert first.private_token.to_int() == second.private_token.to_int()
         assert second.layers[0] == s
-    
-    def test_base64_layer_bits(self):
-        self.config["layers"] = [
-            {
-                "type": "base64",
-                "bits": 144,
-            }
-        ]
-        token = Token(self.config)
-        s = "1234567890abcdefghij+/+/"
-        first = token.encode(s)
-        second = token.decode(first.public_token)
-        assert first.private_token.to_int() == second.private_token.to_int()
-        assert second.layers[0] == s
-    
-    def test_base64_layer_length(self):
-        self.config["layers"] = [
-            {
-                "type": "base64",
-                "length": 24,
-            }
-        ]
-        token = Token(self.config)
-        s = "1234567890abcdefghij+/+/"
-        first = token.encode(s)
-        second = token.decode(first.public_token)
-        assert first.private_token.to_int() == second.private_token.to_int()
-        assert second.layers[0] == s
-    
-    

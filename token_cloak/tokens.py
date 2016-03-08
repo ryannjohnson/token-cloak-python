@@ -16,11 +16,10 @@ class TokenLayer:
     """Provides a common interface for several token layer types."""
     
     TYPES = [
+        'BitCollection',
         'int',
         'bytes',
-        'str',
         'hex',
-        'base64',
     ]
     """The list of valid types."""
     
@@ -51,10 +50,11 @@ class TokenLayer:
             if not isinstance(self.length, int) or self.length < 1:
                 raise ConfigError('layer length must be a positive int')
         
-        # Ints require bits.
-        if self.type == 'int':
+        # Bits and ints require bits.
+        if self.type in ['BitCollection','int']:
             if not self.bits:
-                raise ConfigError('layer int bits key must be a positive int')
+                err = 'layer %s bits key must be a positive int'
+                raise ConfigError(err % self.type)
             self.length = self.bits
         
         # Bytes are 8 bits each.
@@ -74,44 +74,6 @@ class TokenLayer:
                 self.length = self.bits // 4
             else:
                 self.bits = self.length * 4
-        
-        # Base64 are 24 bits per 3 characters.
-        elif self.type == 'base64':
-            if self.bits:
-                if (self.bits % 24) != 0:
-                    err = 'layer base64 bits must be divisible by 24'
-                    raise ConfigError(err)
-                self.length = self.bits // 6
-            else:
-                if (self.length % 3) != 0:
-                    err = 'layer base64 length must be divisible by 3'
-                    raise ConfigError(err)
-                self.bits = self.length * 6
-            
-            # Set the config for url safe.
-            self.config['url_safe'] = self.config.get('url_safe', False)
-        
-        # String?
-        elif self.type == 'str':
-            
-            # Requires a codec.
-            config = d.get('codec', None)
-            self.config['codec'] = config
-            if not codec or not isinstance(codec, str):
-                raise ConfigError('layer str codec is required')
-            
-            # Test the codec to get its length.
-            bytes_ = 'a'.encode(codec) # May raise error
-            bits_per_length = len(bytes_) * 8
-            
-            # Figure out bits and length.
-            if self.bits:
-                if (self.bits % bits_per_length) != 0:
-                    err = 'layer str bits is incompatible with %s' % codec
-                    raise ConfigError(err)
-                self.length = self.bits // bits_per_length
-            else:
-                self.bits = self.length * bits_per_length
         
         # Type doesn't count.
         else:
@@ -141,6 +103,14 @@ class TokenLayer:
     def to_bitcollection(self, v):
         """Get the BitCollection for this layer."""
         
+        # Is it a BitCollection?
+        if self.type == 'BitCollection':
+            if not isinstance(v, BitCollection):
+                raise ValueError('layer value must be a BitCollection')
+            if v.length() != self.bits:
+                raise ValueError('layer value has incorrect number of bits')
+            return v
+        
         # Is it an int?
         if self.type == 'int':
             if not isinstance(v, int):
@@ -158,19 +128,12 @@ class TokenLayer:
             return BitCollection.from_bytes(v)
         
         # Is it string?
-        if self.type in ['hex','base64','str']:
+        if self.type == 'hex':
             if not isinstance(v, str):
                 raise ValueError('layer value must be str')
             if len(v) != self.length:
                 raise ValueError('layer value is incorrect length')
-            if self.type == 'hex':
-                return BitCollection.from_hex(v)
-            if self.type == 'base64':
-                return BitCollection.from_base64(
-                        v, url_safe=self.config.get('url_safe', False))
-            if self.type == 'str':
-                return BitCollection.from_str(
-                        v, codec=self.config.get('codec', None))
+            return BitCollection.from_hex(v)
         
         # Something failed here, which should be impossible.
         raise ConfigError('unable to create BitCollection')
@@ -178,16 +141,14 @@ class TokenLayer:
     
     def from_bitcollection(self, b):
         """Convert to original format."""
+        if self.type == 'BitCollection':
+            return b
         if self.type == 'int':
             return b.to_int()
         if self.type == 'bytes':
             return b.to_bytes()
         if self.type == 'hex':
             return b.to_hex()
-        if self.type == 'base64':
-            return b.to_base64(url_safe=self.config.get('url_safe'))
-        if self.type == 'str':
-            return b.to_str(codec=self.config.get('codec'))
         raise ConfigError('unable to convert to original format')
 
 
@@ -350,19 +311,39 @@ class Token:
             ConfigError: number of args doesn't match number of layers.
         
         """
+        # Ensure the input matches
+        stored_token = None
+        if len(args) != len(self.layers):
+            
+            # Is there not just one more than before?
+            if len(args) != (len(self.layers) + 1):
+                err = 'number of args doesn\'t match number of layers'
+                raise ConfigError(err)
+            
+            # The first argument will be treated as a token.
+            stored_token = args[0]
+            if not isinstance(args[0], BitCollection):
+                raise ValueError('token must be a BitCollection')
+            
+            # Is it the correct length?
+            if stored_token.length() != self.stored_token_bits:
+                err = 'token must be %d bits long, is currently %d'
+                err = err % (self.stored_token_bits, stored_token.length(),)
+                raise ValueError(err)
+            
+            # Adjust the args for proper use.
+            args = args[1:]
+        
         # Generate a new stored token.
-        if self.stored_token_bits and self.stored_token_bits > 0:
-            bytes_ = os.urandom(self.stored_token_bits // 8)
-            stored_token = BitCollection.from_bytes(bytes_)
-        else:
-            stored_token = BitCollection()
+        if not stored_token:
+            if self.stored_token_bits and self.stored_token_bits > 0:
+                bytes_ = os.urandom(self.stored_token_bits // 8)
+                stored_token = BitCollection.from_bytes(bytes_)
+            else:
+                stored_token = BitCollection()
         
         # Start the new public token.
         public_token = copy.deepcopy(stored_token)
-        
-        # Ensure the input matches
-        if len(args) != len(self.layers):
-            raise ConfigError('number of args doesn\'t match number of layers')
         
         # Are there any layers?
         if not self.layers:
@@ -437,7 +418,7 @@ class Token:
         with the decoded values from the token.
         
         Args:
-            token (str): Base64 encoded public token.
+            token (mixed): public token in a variety of possible types.
             data_type (Optional[str]): How the token is encoded on a
                 data level. Optional if not string or if in config.
         
@@ -447,7 +428,7 @@ class Token:
         """
         # Get data_type from somewhere else.
         if not data_type:
-            data_type = self.config.get('public_token_encoding', None)
+            data_type = self.config.get('public_token_type', None)
         
         # Put the token into a BitCollection based on data_type.
         if not data_type:
