@@ -45,26 +45,32 @@ result.layers[0] # Equals 12345678
 
 ## How it works
 
-The first step is to start with a random series of bits. In this example, the token is 16 bits long.
+Let's suppose our original token is 16 bits long.
 
 ```py
-0110010110011010
+"0110010110011010"
 ```
 
-Next, layers are added in the order they are set. In this example, we'll add `12` as a 4-bit integer at positions 15, 3, 8, and 19, in that order. In binary, the decimal `12` is represented as binary `1100`.
+Layer bits are then added to the token in a specific order.
+
+In this example, we'll add `12` as a 4-bit integer at positions 15, 3, 8, and 19, in that order. In binary, the decimal `12` is represented as binary `1100`.
 
 ```py
-0110010110011010 # Original token
+"0110010110011010" # Original token
 
-01100101100110110 # Add `1` at index 15
-               ^
-011100101100110110 # Add `1` at index 3
-   ^
-0111001001100110110 # Add `0` at index 8
-        ^
-01110010011001101100 # Add `0` at index 19
-                   ^
+"01100101100110110" # Add `1` at index 15
+                ^
+"011100101100110110" # Add `1` at index 3
+    ^
+"0111001001100110110" # Add `0` at index 8
+         ^
+"01110010011001101100" # Add `0` at index 19
+                    ^
 ```
+
+Bit positions can be manually set or seeded automatically. If seeded, the seed bits will be inserted into the token after their respective layers (`8` bits by default).
+
+The public token is complete when all the layers have been added.
 
 ## Advanced usage
 
