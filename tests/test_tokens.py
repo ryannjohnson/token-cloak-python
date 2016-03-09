@@ -1,14 +1,19 @@
 import random
+import token_cloak
 from token_cloak import BitCollection, Token
 
 
 class TestToken:
     
     def setup_method(self, method):
+        s = ""
+        chars = "1234567890-=+_,.></?'\";:!@#$%^&*()`~"
+        for i in range(64):
+            s += chars[random.randint(0, len(chars) - 1)]
+        token_cloak.secret_key = s
         self.config = {
-            "secret_key": "music makes me lose control",
             "random_bits": 123,
-            "seed_bits": 4,
+            "seed_bits": random.randint(0,8),
         }
         self.start = 23
         self.end = 47
@@ -18,7 +23,32 @@ class TestToken:
     
     @staticmethod
     def randint(i):
-        return random.randint(0, 2 ** (i - 1))
+        return random.randint(0, 2 ** (i - 1) + 1)
+    
+    def test_secret(self):
+        self.config["secret_key"] = "secret1"
+        self.config["layers"] = [
+            {
+                "type": "hex",
+                "length": 10,
+            },
+            {
+                "type": "int",
+                "bits": 50,
+            }
+        ]
+        a = "1234567890"
+        b = self.randint(50)
+        token = Token(self.config)
+        first = token.encode(a, b)
+        second = token.decode(first.public_token)
+        assert first.private_token.to_int() == second.private_token.to_int()
+        assert a == second.layers[0]
+        assert b == second.layers[1]
+        self.config["secret_key"] = "secret2"
+        token2 = Token(self.config)
+        third = token2.decode(second.public_token)
+        assert a != third.layers[0]
     
     def test_no_token(self):
         del self.config["random_bits"]
@@ -84,7 +114,8 @@ class TestToken:
             second = token.decode(first.public_token.to_int(), data_type='int')
             assert first.private_token.to_int() == second.private_token.to_int()
             assert second.layers[0] == a
-            assert second.public_token.length() == self.config["random_bits"] + i+4
+            s = i + self.config["seed_bits"]
+            assert second.public_token.length() == self.config["random_bits"] + s
     
     def test_bytes_layer_bits(self):
         for i in range(self.start, self.end):
@@ -97,7 +128,6 @@ class TestToken:
             bytes_ = bytes()
             for j in range(i):
                 bytes_ += bytes([random.randint(0, 2 ** (8 - 1))])
-            print(i, bytes_)
             token = Token(self.config)
             first = token.encode(bytes_)
             second = token.decode(first.public_token.to_bytes(), data_type='bytes')

@@ -296,6 +296,11 @@ class Token:
             # Ingest layers as TokenLayers.
             for row in config.get('layers'):
                 self.layers.append(TokenLayer(row)) # Raises ConfigError
+        
+        # Make sure the secret is long enough for layers.
+        if len(self.layers) > len(self.secret_key):
+            err = "secret key length cannot be less than number of layers"
+            raise ConfigError(err)
     
     
     def encode(self, *args):
@@ -361,7 +366,7 @@ class Token:
         # Decide on predictable seed positions up front
         seed_sources = []
         need_seeds = self.needed_seeds()
-        if need_seeds > 0:
+        if self.seed_bits and need_seeds > 0:
             for chunk in self.secret_key_collection.chunk(need_seeds):
                 seed_sources.append(chunk)
             seed_sources = seed_sources[::-1]
@@ -372,13 +377,15 @@ class Token:
             
             # Does this layer have positions?
             layer_seed_seed = None
-            layer_seed_value = None
+            layer_seed_value = 0
             layer_positions = layer.positions
             if not layer_positions:
                 
                 # Get the seed prepared.
-                layer_seed_seed = seed_sources.pop()
-                layer_seed_value = random.randint(0, (2 ** self.seed_bits) - 1)
+                if self.seed_bits:
+                    layer_seed_seed = seed_sources.pop()
+                    top = (2 ** self.seed_bits) - 1
+                    layer_seed_value = random.randint(0, top)
                 
                 # Generate the layer positions using the seed.
                 layer_positions = self.generate_bit_positions(
@@ -459,7 +466,6 @@ class Token:
         # Decode from bytes.
         elif data_type == 'bytes':
             public_token = BitCollection.from_bytes(token)
-            print(public_token.length())
             bit_remainder = self.remainder_by_divisor(expected_length, 8)
         
         # Decode from hex.
@@ -484,8 +490,6 @@ class Token:
         
         # Validate the token by its length.
         if expected_length != public_token.length():
-            print('Expected length:', expected_length)
-            print('Token length:', public_token.length())
             return None
         
         # Setup the stored token.
@@ -501,7 +505,7 @@ class Token:
         stored_layers = []
         seed_sources = []
         need_seeds = self.needed_seeds()
-        if need_seeds > 0:
+        if self.seed_bits and need_seeds > 0:
             for chunk in self.secret_key_collection.chunk(need_seeds):
                 seed_sources.append(chunk)
         
@@ -510,20 +514,21 @@ class Token:
             
             # Does it have a seeded position?
             layer_seed_seed = None
-            layer_seed_value = None
+            layer_seed_value = 0
             layer_positions = layer.positions
             if not layer_positions:
                 
                 # Get the seed from the token.
-                layer_seed_seed = seed_sources.pop()
-                seed_positions = self.generate_bit_positions(
-                        seed=layer_seed_seed,
-                        max_position=stored_token.length() - self.seed_bits,
-                        bits=self.seed_bits)
-                
-                # Extract in the seed bits.
-                layer_seed_value = stored_token.extract_int(
-                        positions=seed_positions[::-1])
+                if self.seed_bits:
+                    layer_seed_seed = seed_sources.pop()
+                    seed_positions = self.generate_bit_positions(
+                            seed=layer_seed_seed,
+                            max_position=stored_token.length() - self.seed_bits,
+                            bits=self.seed_bits)
+                    
+                    # Extract in the seed bits.
+                    layer_seed_value = stored_token.extract_int(
+                            positions=seed_positions[::-1])
                 
                 # Generate the layer positions using the seed.
                 layer_positions = self.generate_bit_positions(
