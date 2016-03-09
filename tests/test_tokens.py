@@ -13,7 +13,7 @@ class TestToken:
         token_cloak.secret_key = s
         self.config = {
             "random_bits": 123,
-            "seed_bits": random.randint(0,8),
+            "seed_bits": 0,
         }
         self.start = 23
         self.end = 47
@@ -114,8 +114,8 @@ class TestToken:
             second = token.decode(first.public_token.to_int(), data_type='int')
             assert first.private_token.to_int() == second.private_token.to_int()
             assert second.layers[0] == a
-            s = i + self.config["seed_bits"]
-            assert second.public_token.length() == self.config["random_bits"] + s
+            s = i + token.seed_bits
+            assert second.public_token.length() == token.stored_token_bits + s
     
     def test_bytes_layer_bits(self):
         for i in range(self.start, self.end):

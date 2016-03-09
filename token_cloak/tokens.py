@@ -1,16 +1,11 @@
-import base64
 import binascii
 import copy
 import os
 import random
-import re
 
 from .collections import BitCollection, SecretKeyCollection
 from .exceptions import ConfigError
 from .random import MT19937
-from .utils import (
-        b64_to_int, chunk_string, extract_bits, insert_bits,
-        int_to_b64, single_iterator_to_list)
 
 
 class TokenLayer:
@@ -639,7 +634,7 @@ class Token:
         positions = []
         for i in range(bits):
             positions.append(r.rand_int(0, max_position))
-        
+        print(positions)
         # Return the list of integers
         return positions
     
