@@ -98,21 +98,6 @@ class BitCollection:
         return cls(int_to_bitarray(i, bits=bits))
     
     
-    @classmethod
-    def from_str(cls, s, codec):
-        """Creates a new collection from a string.
-        
-        Args:
-            s (str): A string to encode into bits.
-            codec (str): Method of encoding.
-        
-        Returns:
-            BitCollection: new instance.
-            
-        """
-        return cls(str_to_bitarray(s, codec=codec))
-    
-    
     def extract(self, positions):
         """Extract BitCollection from this collection.
         
@@ -232,25 +217,6 @@ class BitCollection:
         return bitarray_to_base64(bits, url_safe=url_safe)
     
     
-    def extract_str(self, positions, codec):
-        """Extract bits from this collection at the given positions.
-        
-        Args:
-            positions (list): The positions to extract bits from the
-                collection.
-            codec (str): Method of decoding.
-        
-        Returns:
-            str: base64 encoded.
-        
-        """
-        # Extract the bits
-        bits = self.extract_bitarray(positions=positions)
-        
-        # Convert to str via the codec
-        return bitarray_to_str(bits, codec=codec)
-    
-    
     def insert(self, b, positions):
         """Insert another BitCollection into this collection.
         
@@ -342,21 +308,6 @@ class BitCollection:
         self.insert_bitarray(bits, positions=positions)
     
     
-    def insert_str(self, s, positions, codec):
-        """Insert string into this collection at the given positions.
-        
-        Args:
-            s (str): Hexadecimal to insert.
-            positions (list): The positions to insert bits into the
-                collection.
-            codec (str): Method of encoding. Examples include 'ascii'
-                and 'utf-8'.
-        
-        """
-        bits = str_to_bitarray(s, codec=codec)
-        self.insert_bitarray(bits, positions=positions)
-    
-    
     def length(self):
         """Return the number of bits stored in the object."""
         if not self.content:
@@ -398,19 +349,6 @@ class BitCollection:
     def to_int(self):
         """Express this collection as an integer."""
         return bitarray_to_int(self.content)
-    
-    
-    def to_str(self, codec):
-        """Express this collection as a string.
-        
-        Args:
-            codec (str): Method of decoding.
-        
-        Returns:
-            str: decoded with the given codec.
-        
-        """
-        return bitarray_to_str(self.content, codec=codec)
 
 
 class SecretKeyCollection:

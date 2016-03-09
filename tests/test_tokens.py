@@ -15,7 +15,7 @@ class TestToken:
             "random_bits": 123,
             "seed_bits": random.randint(0, 16),
         }
-        self.start = 23
+        self.start = 1
         self.end = 200
     
     def teardown_method(self, method):
@@ -23,7 +23,7 @@ class TestToken:
     
     @staticmethod
     def randint(i):
-        return random.randint(0, 2 ** (i - 1) + 1)
+        return random.randint(0, 2 ** (i - 1))
     
     def test_secret(self):
         self.config["secret_key"] = "secret1"
