@@ -213,15 +213,13 @@ class Token:
         self.seed_bits = 32
         
         # What should the random token look like?
-        self.stored_token_bits = 512
+        self.stored_token_bits = 0
         
         # Values getting spliced into the public token.
         self.layers = []
         
         # Default for encryption.
-        self.encryption = {
-            "algorithm": "aes-256-cbc",
-        }
+        self.encryption = None
         
         # Is config here?
         self.config = {}
