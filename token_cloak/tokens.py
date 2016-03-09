@@ -361,7 +361,7 @@ class Token:
         # Decide on predictable seed positions up front
         seed_sources = []
         need_seeds = self.needed_seeds()
-        if self.seed_bits and need_seeds > 0:
+        if need_seeds > 0:
             for chunk in self.secret_key_collection.chunk(need_seeds):
                 seed_sources.append(chunk)
             seed_sources = seed_sources[::-1]
@@ -377,8 +377,9 @@ class Token:
             if not layer_positions:
                 
                 # Get the seed prepared.
+                layer_seed_value = seed_sources.pop()
                 if self.seed_bits:
-                    layer_seed_seed = seed_sources.pop()
+                    layer_seed_seed = layer_seed_value
                     top = (2 ** self.seed_bits) - 1
                     layer_seed_value = random.randint(0, top)
                 
@@ -500,7 +501,7 @@ class Token:
         stored_layers = []
         seed_sources = []
         need_seeds = self.needed_seeds()
-        if self.seed_bits and need_seeds > 0:
+        if need_seeds > 0:
             for chunk in self.secret_key_collection.chunk(need_seeds):
                 seed_sources.append(chunk)
         
@@ -514,10 +515,10 @@ class Token:
             if not layer_positions:
                 
                 # Get the seed from the token.
+                layer_seed_value = seed_sources.pop()
                 if self.seed_bits:
-                    layer_seed_seed = seed_sources.pop()
                     seed_positions = self.generate_bit_positions(
-                            seed=layer_seed_seed,
+                            seed=layer_seed_value,
                             max_position=stored_token.length() - self.seed_bits,
                             bits=self.seed_bits)
                     
@@ -633,8 +634,8 @@ class Token:
         # Start generating
         positions = []
         for i in range(bits):
-            positions.append(r.rand_int(0, max_position))
-        print(positions)
+            positions.append(r.rand_int(0, max_position + i))
+        
         # Return the list of integers
         return positions
     

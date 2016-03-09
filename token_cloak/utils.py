@@ -1,7 +1,6 @@
 import base64
 import binascii
 from bitarray import bitarray
-import random
 
 
 def bitarray_to_base64(b, url_safe=False):

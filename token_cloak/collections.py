@@ -433,7 +433,7 @@ class SecretKeyCollection:
             t = (int(b) - 32) & 0x5F
             bits = int_to_bitarray(t,6) + bits
         
-        # Pad if necessary
+        # Pad if necessary.
         mod = bits.length() % 8
         if mod:
             bits = bitarray('0' * (8 - mod)) + bits

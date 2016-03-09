@@ -13,10 +13,10 @@ class TestToken:
         token_cloak.secret_key = s
         self.config = {
             "random_bits": 123,
-            "seed_bits": 0,
+            "seed_bits": random.randint(0, 16),
         }
         self.start = 23
-        self.end = 47
+        self.end = 200
     
     def teardown_method(self, method):
         pass
@@ -189,8 +189,9 @@ class TestToken:
     def test_int_layer_positions(self):
         for i in range(self.start, self.end):
             positions = []
+            max_position = self.config["random_bits"]
             for j in range(i):
-                positions.append(random.randint(0, i + j))
+                positions.append(random.randint(0, max_position + j))
             self.config["layers"] = [
                 {
                     "type": "int",
