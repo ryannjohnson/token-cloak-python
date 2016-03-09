@@ -1,9 +1,9 @@
 """
-Token Cloak is a utility for lacing public tokens with data.
+Token Cloak is a utility for hiding data in public tokens.
 """
 
 __license__ = 'MIT License'
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 
 secret_key = None

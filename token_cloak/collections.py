@@ -410,7 +410,7 @@ class SecretKeyCollection:
         
         # Keep the data.
         self.original = s
-        self.content = bits
+        self.content = BitCollection(bits)
         self.index = 0
     
     
@@ -433,7 +433,7 @@ class SecretKeyCollection:
             chunk_size += 1
         
         # Get the iterator going
-        iterator = iter(self.content.tobytes())
+        iterator = iter(self.content.to_bytes())
         for a in range(n):
             
             # Build this specific chunk, one char at a time

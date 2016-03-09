@@ -179,6 +179,7 @@ class Token:
             "secret_key": "the length of this should be long",
             "random_bits": 512,
             "seed_bits": 4,
+            "encryption": "aes-256-cbc",
             "layers": [
                 {
                     'type': 'int',
@@ -216,6 +217,11 @@ class Token:
         # Values getting spliced into the public token.
         self.layers = []
         
+        # Default for encryption.
+        self.encryption = {
+            "algorithm": "aes-256-cbc",
+        }
+        
         # Is config here?
         self.config = {}
         if config:
@@ -237,17 +243,16 @@ class Token:
         if secret:
             if not isinstance(secret, str):
                 raise ConfigError('secret key must be a string')
-            self.secret_key = secret
         
         # Might have to use global secret if available
         else:
             from token_cloak import secret_key
             if not secret_key:
                 raise ConfigError('secret key is not set')
-            self.secret_key = secret_key
+            secret = secret_key
         
         # Get the secret key collection going.
-        self.secret_key_collection = SecretKeyCollection(self.secret_key)
+        self.secret_key = SecretKeyCollection(secret)
         
         # Determines the length of stored token.
         self.stored_token_bits = 0
@@ -284,7 +289,7 @@ class Token:
                 self.layers.append(TokenLayer(row)) # Raises ConfigError
         
         # Make sure the secret is long enough for layers.
-        if len(self.layers) > len(self.secret_key):
+        if len(self.layers) > len(self.secret_key.original):
             err = "secret key length cannot be less than number of layers"
             raise ConfigError(err)
     
@@ -345,7 +350,7 @@ class Token:
         seed_sources = []
         need_seeds = self.needed_seeds()
         if need_seeds > 0:
-            for chunk in self.secret_key_collection.chunk(need_seeds):
+            for chunk in self.secret_key.chunk(need_seeds):
                 seed_sources.append(chunk)
             seed_sources = seed_sources[::-1]
         
@@ -485,7 +490,7 @@ class Token:
         seed_sources = []
         need_seeds = self.needed_seeds()
         if need_seeds > 0:
-            for chunk in self.secret_key_collection.chunk(need_seeds):
+            for chunk in self.secret_key.chunk(need_seeds):
                 seed_sources.append(chunk)
         
         # Start off with the layers!
@@ -552,7 +557,7 @@ class Token:
         m.update(b.to_bytes())
         
         # Insert the bytes from the secret key.
-        m.update(self.secret_key.encode('ascii'))
+        m.update(self.secret_key.content.to_bytes())
         
         # Get 32-bits worth of the resulting hash.
         c = BitCollection.from_bytes(m.digest()[:4])
