@@ -187,6 +187,7 @@ class TestToken:
             assert second.layers[0] == s
     
     def test_int_layer_positions(self):
+        self.config['encryption'] = None
         for i in range(self.start, self.end):
             positions = []
             max_position = self.config["random_bits"]

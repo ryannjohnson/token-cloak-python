@@ -38,7 +38,7 @@ class AES256Cipher:
         
         """
         # Pad the input so it's the right block size.
-        raw = pad(raw)
+        raw = self.pad(raw)
         
         # Create essentially a salt for the encryption.
         iv = Random.new().read( self.block_size )
@@ -73,16 +73,16 @@ class AES256Cipher:
         mod = self.block_size - len(b) % self.block_size
         
         # Return the padded bytes.
-        return b + a * chr(mod)
+        return b + mod * chr(mod).encode('ascii')
     
     def unpad(self, b):
         """Unpad data according to the trailing character."""
         
         # Get the last byte.
-        last_chr = b[len(s)-1:]
+        last_chr = b[len(b)-1:]
         
         # Grab the number of bytes to shave off.
-        to_shave = ord(last_char)
+        to_shave = ord(last_chr.decode('ascii'))
         
         # Return the bytes.
         return b[:-to_shave]

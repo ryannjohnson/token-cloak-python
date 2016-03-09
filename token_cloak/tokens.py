@@ -179,7 +179,7 @@ class Token:
         config = {
             "secret_key": "the length of this should be long",
             "random_bits": 512,
-            "seed_bits": 4,
+            "seed_bits": 32,
             "encryption": "aes-256-cbc",
             "layers": [
                 {
@@ -210,7 +210,7 @@ class Token:
         self.secret_key = None
         
         # Number of bits saying how many automatic positions exist.
-        self.seed_bits = 8
+        self.seed_bits = 32
         
         # What should the random token look like?
         self.stored_token_bits = 512
@@ -240,29 +240,34 @@ class Token:
         self.config = config
         
         # Ingest the secret used to seed everything.
-        secret = config.get('secret_key', None)
-        if secret:
-            if not isinstance(secret, str):
+        if 'secret_key' in config:
+            secret_key = config.get('secret_key')
+            if not isinstance(secret_key, str):
                 raise ConfigError('secret key must be a str')
         
         # Might have to use global secret if available
         else:
             from token_cloak import secret_key
-            if not secret_key:
-                raise ConfigError('secret key is not set')
-            secret = secret_key
+            if not secret_key or not isinstance(secret_key, str):
+                raise ConfigError('secret key str is not set')
         
         # Get the secret key collection going.
-        self.secret_key = SecretKeyCollection(secret)
+        self.secret_key = SecretKeyCollection(secret_key)
         
-        # Encryption?
-        encryption = config.get('encryption', None)
-        self.encryption = None
-        if encryption:
+        # Encryption? (leave untouched if not present).
+        if 'encryption' in config:
+            
+            # Set variables.
+            self.encryption = None
+            encryption = config.get('encryption', True)
+            
+            # String?
             if isinstance(encryption, str):
                 self.encryption = {
                     "algorithm": encryption,
                 }
+            
+            # Dict?
             elif isinstance(encryption, dict):
                 algo = encryption.get('algorithm', None)
                 if algo and not isinstance(algo, str):
@@ -273,9 +278,8 @@ class Token:
                     }
         
         # Determines the length of stored token.
-        self.stored_token_bits = 0
-        random_bits = config.get('random_bits', None)
-        if random_bits:
+        if 'random_bits' in config:
+            random_bits = config.get('random_bits')
             
             # Is it a direct injection?
             if isinstance(random_bits, BitCollection):
@@ -290,21 +294,22 @@ class Token:
                 self.stored_token_bits = random_bits
         
         # Determines how many possible seeds there can be.
-        seed_bits = config.get('seed_bits', None)
-        if seed_bits:
+        if 'seed_bits' in config:
+            seed_bits = config.get('seed_bits')
             if not isinstance(seed_bits, int) or seed_bits < 0:
                 raise ConfigError('seed bits must be a non-negative int')
             self.seed_bits = seed_bits
         
         # Ingest the layers sequence and sizes.
-        self.layers = []
-        if config.get('layers', None):
-            if not isinstance(config.get('layers'), list):
-                raise ConfigError('layers must be a list')
-            
-            # Ingest layers as TokenLayers.
-            for row in config.get('layers'):
-                self.layers.append(TokenLayer(row)) # Raises ConfigError
+        if 'layers' in config:
+            self.layers = []
+            if config.get('layers'):
+                if not isinstance(config.get('layers'), list):
+                    raise ConfigError('layers must be a list')
+                
+                # Ingest layers as TokenLayers.
+                for row in config.get('layers'):
+                    self.layers.append(TokenLayer(row)) # Raises ConfigError
         
         # Make sure the secret is long enough for layers.
         if len(self.layers) > len(self.secret_key.original):
@@ -415,7 +420,7 @@ class Token:
                 # Sew in the seed bits.
                 public_token.insert_int(
                         layer_seed_value, positions=seed_positions)
-        
+        print(public_token.content)
         # Encrypt the final result.
         public_token = self.encrypt(public_token)
         
@@ -480,8 +485,9 @@ class Token:
         
         # Decode from int.
         elif data_type == 'int':
-            if token.bit_length() > self.public_token_bit_length():
-                return None
+            if not self.encryption:
+                if token.bit_length() > self.public_token_bit_length():
+                    return None
             public_token = BitCollection.from_int(
                     token, bits=self.public_token_bit_length())
         
@@ -489,19 +495,27 @@ class Token:
         else:
             raise ValueError('invalid data_type')
         
+        # Setup the stored token.
+        stored_token = copy.deepcopy(public_token)
+        
         # Decrypt the inital token.
-        public_token = self.decrypt(public_token)
+        stored_token = self.decrypt(stored_token)
         
         # Adjust if a remainder exists.
         for i in range(bit_remainder):
-            public_token.pop()
-        
+            stored_token.pop()
+        print(stored_token.content)
         # Validate the token by its length.
-        if expected_length != public_token.length():
+        if expected_length > stored_token.length():
             return None
         
-        # Setup the stored token.
-        stored_token = copy.deepcopy(public_token)
+        # Shave it down if needed.
+        if expected_length < stored_token.length():
+            diff = stored_token.length() - expected_length
+            for i in range(diff):
+                stored_token.pop()
+            print("Shaved:",diff)
+        print(stored_token.content)
         
         # Are there layers?
         if not self.layers:

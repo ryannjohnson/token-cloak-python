@@ -66,7 +66,7 @@ Layer bits are then added to the token in a specific order. In this example, we'
                     ^
 ```
 
-Bit positions can be manually set or seeded automatically. If seeded, the seed bits will be inserted into the token after their respective layers (`8` bits by default). The public token is complete when all the layers have been added.
+Bit positions can be manually set or seeded automatically. If seeded, the seed bits will be inserted into the token after their respective layers (`32` bits by default). The public token is complete when all the layers have been added.
 
 ## Configuration
 
@@ -147,7 +147,7 @@ It is possible to set `random_bits` to 0, in which case no original token will b
 
 ### Seed bits
 
-The `seed_bits` key determines how many bits are used for seed values for generated bit positions. By default, `seed_bits` is set to 8.
+The `seed_bits` key determines how many bits are used for seed values for generated bit positions. By default, `seed_bits` is set to 32.
 
 ```py
 config = {
@@ -172,9 +172,9 @@ Alternatively, if authentication only serves as a way to prevent unnecessary was
 
 ## Notes on security
 
-While this package offers a way to obfuscate data, there is little to no research about the effectiveness of this method to secure data in any way.
+By default, [AES-256-CBC encryption](https://en.wikipedia.org/wiki/Advanced_Encryption_Standard#Security) is enabled on cloaked tokens. The `secret_key` is used to encrypt and decrypt tokens, so the strength of encryption depends on the length and complexity of the key.
 
-**It is highly recommended not to put any private data in resulting tokens.** This package was originally intended to carry data to improve network infrastructure efficiency and performance, including things such as pointers to services, shard ids, data resources, and other non-confidential data.
+If this layer of encryption is disabled, assume that the data in the cloaked token is able to be discovered 
 
 ## Appendix A
 
@@ -182,78 +182,32 @@ While this package offers a way to obfuscate data, there is little to no researc
 
 The `Token` class encodes and decodes public tokens based on its provided configuration. On init, it takes a single `dict` object to configure it (as seen above).
 
-##### Token.encode(args[,...])
-
-The `encode` method takes a number of positional arguments equal to the number of configured layers. Each argument must be the proper data type and size (in bits) according to its corresponding layer configuration.
-
-Optionally, an additional positional argument may be added as a custom original token (instead of generating one). This argument must be an instance of `BitCollection`, must be the first positional argument, and must have a number of bits equal to the `random_bits` key (512 by default).
-
-This method returns a `TokenResult` object.
-
-##### Token.decode(token[, data_type[, kwargs[,...]]])
-
-The `decode` method requires a token of a data type in `base64` (str), `BitCollection` (BitCollection), `bytes` (bytes), `int` (int), or `hex` (str). 
-
-The `data_type` argument describes how to treat the `token` argument is required for all but an of instance `BitCollection`. Accepted values include `base64`, `bytes`, `int`, and `hex`.
-
-If a `base64` token is url-safe and uses `-_` instead of `+/`, the `url_safe` keyword argument may be set to `True`.
-
-This method returns a `TokenResult` object if successful, and `None` if the input `token` was unable to be decoded.
+Method/attribute | Description
+--- | ---
+encode(args[,...]) | The `encode` method takes a number of positional arguments equal to the number of configured layers. Each argument must be the proper data type and size (in bits) according to its corresponding layer configuration. Optionally, an additional positional argument may be added as a custom original token (instead of generating one). This argument must be an instance of `BitCollection`, must be the first positional argument, and must have a number of bits equal to the `random_bits` key (512 by default). This method returns a `TokenResult` object.
+decode(token[, data_type[, kwargs[,...]]]) | The `decode` method requires a token of a data type in `base64` (str), `BitCollection` (BitCollection), `bytes` (bytes), `int` (int), or `hex` (str). The `data_type` argument describes how to treat the `token` argument is required for all but an of instance `BitCollection`. Accepted values include `base64`, `bytes`, `int`, and `hex`. If a `base64` token is url-safe and uses `-_` instead of `+/`, the `url_safe` keyword argument may be set to `True`. This method returns a `TokenResult` object if successful, and `None` if the input `token` was unable to be decoded.
 
 ### BitCollection class
 
 The `BitCollection` class is a standardized way to work with and express binary data within Token Cloak.
 
-##### BitCollection.from_base64(s[, url_safe=False]) _(classmethod)_
-
-Converts a base64-encoded string to a BitCollection. Raises `binascii.Error` if the string is invalid.
-
-The `url_safe` flag can be set to `True` if the input string uses `-_` instead of `+/`.
-
-Returns an instance of BitCollection.
-
-##### BitCollection.from_bytes(b) _(classmethod)_
-
-Converts bytes to a BitCollection. Returns an instance of BitCollection.
-
-##### BitCollection.from_hex(s) _(classmethod)_
-
-Converts a hexadecimal string to a BitCollection. Able to handle strings with an odd number of characters. Returns an instance of BitCollection.
-
-##### BitCollection.from_int(i, bits) _(classmethod)_
-
-Converts an integer to a BitCollection. The `bits` argument determines how many bits will be used to hold the input `int`. The input `int` can have a value no larger than 2**(bits) - 1.
-
-Returns an instance of BitCollection.
-
-##### BitCollection.to_base64([url_safe=False])
-
-Returns a base64-encoded string of the bits in BitCollection. If `url_safe` is `True`, then `-_` will be used in place of `+/`.
-
-##### BitCollection.to_bytes()
-
-Returns bytes of the bits in BitCollection. Will be right-padded with `0` bits if not divisible by 8.
-
-##### BitCollection.to_hex()
-
-Returns bytes of the bits in BitCollection. Will be right-padded with `0` bits if not divisible by 4.
-
-##### BitCollection.to_int()
-
-Returns int representation of the bits in BitCollection.
+Method/attribute | Description
+--- | ---
+from_base64(s[, url_safe=False]) | _(classmethod)_ Converts a base64-encoded string to a BitCollection. Raises `binascii.Error` if the string is invalid. The `url_safe` flag can be set to `True` if the input string uses `-_` instead of `+/`. Returns an instance of BitCollection.
+from_bytes(b) | _(classmethod)_ Converts bytes to a BitCollection. Returns an instance of BitCollection.
+from_hex(s) | _(classmethod)_ Converts a hexadecimal string to a BitCollection. Able to handle strings with an odd number of characters. Returns an instance of BitCollection.
+from_int(i, bits) | _(classmethod)_ Converts an integer to a BitCollection. The `bits` argument determines how many bits will be used to hold the input `int`. The input `int` can have a value no larger than 2**(bits) - 1. Returns an instance of BitCollection.
+to_base64([url_safe=False]) | Returns a base64-encoded string of the bits in BitCollection. If `url_safe` is `True`, then `-_` will be used in place of `+/`.
+to_bytes() | Returns bytes of the bits in BitCollection. Will be right-padded with `0` bits if not divisible by 8.
+to_hex() | Returns bytes of the bits in BitCollection. Will be right-padded with `0` bits if not divisible by 4.
+to_int() | Returns int representation of the bits in BitCollection.
 
 ### TokenResult class
 
 This class holds the results from a `Token` encoding or decoding. It always holds the same 3 attributes:
 
-##### TokenResult.public_token
-
-This attribute is a `BitCollection` containing the encoded token.
-
-##### TokenResult.private_token
-
-This attribute is a `BitCollection` containing the original token.
-
-##### TokenResult.layers
-
-This attribute is a `list` containing data according to the `layers` key in the configuration `dict` given to the `Token` class at instantiation. The data is in the same order and data type as in the configuration.
+Method/attribute | Description
+--- | ---
+public_token | This attribute is a `BitCollection` containing the encoded token.
+private_token | This attribute is a `BitCollection` containing the original token.
+layers | This attribute is a `list` containing data according to the `layers` key in the configuration `dict` given to the `Token` class at instantiation. The data is in the same order and data type as in the configuration.
