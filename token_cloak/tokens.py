@@ -177,18 +177,13 @@ class Token:
     
     A sample config could be stored as and submitted as the following:
         config = {
-            "secret_key": "the length of this should be very long",
+            "secret_key": "the length of this should be long",
             "random_bits": 512,
             "seed_bits": 4,
             "layers": [
                 {
                     'type': 'int',
                     'bits': 64, # 64 bits
-                },
-                {
-                    'type': 'str',
-                    'codec': 'ascii',
-                    'length': '12', # 96 bits (ascii = 8 bits per char)
                 },
                 {
                     'type': 'int',
@@ -199,13 +194,10 @@ class Token:
         }
     
     Here is a sample usage:
-        >>> t1 = Token(config)
-        >>> public_token, stored_token1 = t1.encode(1,2,3)
-        >>> type(public_token), type(stored_token1)
-        (<class 'str'>, <class 'int'>)
-        >>> t2 = Token(config)
-        >>> stored_token2, a, b, c = t2.decode(public_token)
-        >>> stored_token1 == stored_token2
+        >>> token = Token(config)
+        >>> result1 = token.encode(1,2)
+        >>> result2 = token.decode(result1.public_token)
+        >>> result2.layers[1] == 2
         True
     
     """
@@ -217,10 +209,10 @@ class Token:
         self.secret_key = None
         
         # Number of bits saying how many automatic positions exist.
-        self.seed_bits = 4
+        self.seed_bits = 8
         
         # What should the random token look like?
-        self.stored_token_bits = 0
+        self.stored_token_bits = 512
         
         # Values getting spliced into the public token.
         self.layers = []
