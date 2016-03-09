@@ -1,8 +1,6 @@
 import binascii
 import copy
 import hashlib
-import os
-import random
 
 from .collections import BitCollection, SecretKeyCollection
 from .exceptions import ConfigError
@@ -330,15 +328,7 @@ class Token:
         # Generate a new stored token.
         if not stored_token:
             if self.stored_token_bits and self.stored_token_bits > 0:
-                bits = self.stored_token_bits
-                mod = bits % 8
-                if mod:
-                    bits += (8 - mod)
-                bytes_ = os.urandom(bits // 8)
-                stored_token = BitCollection.from_bytes(bytes_)
-                if mod:
-                    for i in range(8 - mod):
-                        stored_token.pop()
+                stored_token = BitCollection.from_random(self.stored_token_bits)
             else:
                 stored_token = BitCollection()
         
@@ -373,8 +363,8 @@ class Token:
                 layer_seed_value = seed_sources.pop()
                 if self.seed_bits:
                     layer_seed_seed = layer_seed_value
-                    top = (2 ** self.seed_bits) - 1
-                    layer_seed_value = random.randint(0, top)
+                    b = BitCollection.from_random(self.seed_bits)
+                    layer_seed_value = b.to_int()
                     
                 # Generate the layer positions using the seed.
                 layer_positions = self.generate_bit_positions(

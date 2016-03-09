@@ -2,6 +2,7 @@ import base64
 import binascii
 from bitarray import bitarray
 import hashlib
+import os
 
 from .exceptions import ConfigError
 from .utils import (
@@ -96,6 +97,37 @@ class BitCollection:
             
         """
         return cls(int_to_bitarray(i, bits=bits))
+    
+    
+    @classmethod
+    def from_random(cls, bits):
+        """Generates a totally random BitCollection.
+        
+        Args:
+            bits (int): Length of the BitCollection.
+        
+        Return:
+            BitCollection: new instance.
+        
+        """
+        # The source length needs to be divisible by 8 and encompassing.
+        mod = bits % 8
+        if mod:
+            bits += (8 - mod)
+        
+        # Generate off the os's better randomness.
+        bytes_ = os.urandom(bits // 8)
+        
+        # Create BitCollection from resulting bytes.
+        b = cls.from_bytes(bytes_)
+        
+        # Shave off undwanted bits.
+        if mod:
+            for i in range(8 - mod):
+                b.pop()
+        
+        # Return the BitCollection
+        return b
     
     
     def extract(self, positions):
