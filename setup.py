@@ -48,6 +48,7 @@ setup(
         packages=get_packages('token_cloak'),
         install_requires=[
             'bitarray',
+            'pycrypto',
         ],
         classifiers=[
             'Development Status :: 4 - Beta',

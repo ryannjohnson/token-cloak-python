@@ -2,6 +2,7 @@ import binascii
 import copy
 import hashlib
 
+from .ciphers import AES256Cipher
 from .collections import BitCollection, SecretKeyCollection
 from .exceptions import ConfigError
 from .random import MT19937
@@ -242,7 +243,7 @@ class Token:
         secret = config.get('secret_key', None)
         if secret:
             if not isinstance(secret, str):
-                raise ConfigError('secret key must be a string')
+                raise ConfigError('secret key must be a str')
         
         # Might have to use global secret if available
         else:
@@ -253,6 +254,23 @@ class Token:
         
         # Get the secret key collection going.
         self.secret_key = SecretKeyCollection(secret)
+        
+        # Encryption?
+        encryption = config.get('encryption', None)
+        self.encryption = None
+        if encryption:
+            if isinstance(encryption, str):
+                self.encryption = {
+                    "algorithm": encryption,
+                }
+            elif isinstance(encryption, dict):
+                algo = encryption.get('algorithm', None)
+                if algo and not isinstance(algo, str):
+                    raise ConfigError('encryption algorithm must be a str')
+                if algo:
+                    self.encryption = {
+                        "algorithm": algo,
+                    }
         
         # Determines the length of stored token.
         self.stored_token_bits = 0
@@ -398,6 +416,9 @@ class Token:
                 public_token.insert_int(
                         layer_seed_value, positions=seed_positions)
         
+        # Encrypt the final result.
+        public_token = self.encrypt(public_token)
+        
         # All spliced - return results.
         return TokenResult(
                 public_token=public_token,
@@ -467,6 +488,9 @@ class Token:
         # Invalid type.
         else:
             raise ValueError('invalid data_type')
+        
+        # Decrypt the inital token.
+        public_token = self.decrypt(public_token)
         
         # Adjust if a remainder exists.
         for i in range(bit_remainder):
@@ -571,6 +595,50 @@ class Token:
             if not layer.positions:
                 need_seeds += 1
         return need_seeds
+    
+    
+    def decrypt(self, token):
+        """Decrypts a BitCollection based on token configuration."""
+        return self.crypt(token, "decrypt")
+    
+    
+    def encrypt(self, token):
+        """Encrypts a BitCollection based on token configuration."""
+        return self.crypt(token, "encrypt")
+    
+    
+    def crypt(self, token, method):
+        """Single place to encrypt and decrypt tokens.
+        
+        Args:
+            token (BitCollection): Data to work on.
+            method (str): In "encrypt" or "decrypt".
+        
+        Returns:
+            BitCollection on success. None on failure.
+        
+        """
+        # Is method valid?
+        if method not in ["encrypt","decrypt"]:
+            raise ValueError("method must be in encrypt or decrypt")
+        
+        # Is cryption even necessary?
+        if not self.encryption:
+            return token
+        
+        # Prep cryption variables.
+        token_bytes = token.to_bytes()
+        secret_bytes = self.secret_key.content.to_bytes()
+        algo = self.encryption.get('algorithm')
+        
+        # AES 256 CBC?
+        if algo == 'aes-256-cbc':
+            cipher = AES256Cipher(secret_bytes)
+            new_token = getattr(cipher, method)(token_bytes)
+            return BitCollection.from_bytes(new_token)
+        
+        # Incompatible decryption algorithm.
+        raise ConfigError('invalid encryption algorithm')
     
     
     def public_token_bit_length(self):

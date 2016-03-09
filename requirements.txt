@@ -1,1 +1,2 @@
 bitarray==0.8.1
+pycrypto==2.6.1
