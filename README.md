@@ -1,6 +1,7 @@
 # token-cloak-python
 
 [![Build Status](https://travis-ci.org/ryannjohnson/token-cloak-python.svg?branch=master)](https://travis-ci.org/ryannjohnson/token-cloak-python)
+[![PyPI version](https://img.shields.io/pypi/v/token-cloak.svg)](https://pypi.python.org/pypi/token-cloak)
 
 A utility to hide data in public tokens.
 
@@ -24,23 +25,22 @@ from token_cloak import BitCollection, Token
 # Setup the configuration for one kind of token.
 token = Token({
     "secret_key": "$3crET-K#y",
-    "layers": [
-        {
-            "type": "int",
-            "bits": 64,
-        },
-    ],
+    "layers": [{
+        "type": "int",
+        "bits": 64,
+    }],
 })
 
 # Generate a base64-encoded token with hidden data.
-hidden = 12345678
-public_token = token.encode(hidden).public_token.to_base64()
+data = 12345678
+public_token = token.encode(data).public_token.to_base64()
 
 # Decode the token.
 result = token.decode(public_token, data_type="base64")
 
 # Get the hidden data.
-result.layers[0] # Equals 12345678
+if result:
+    print(result.layers[0]) # Equals 12345678
 ```
 
 ## How it works

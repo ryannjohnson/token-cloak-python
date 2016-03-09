@@ -41,7 +41,7 @@ LICENSE = get_info('__license__')
 
 setup(
         name="token_cloak",
-        description="A utility to lace public tokens with data.",
+        description="A utility to hide data in public tokens.",
         url="https://github.com/ryannjohnson/token-cloak-python",
         license=LICENSE,
         version=VERSION,
@@ -55,4 +55,7 @@ setup(
             'Intended Audience :: Developers',
             'License :: OSI Approved :: MIT License',
             'Programming Language :: Python :: 3',
+            'Programming Language :: Python :: 3.3',
+            'Programming Language :: Python :: 3.4',
+            'Programming Language :: Python :: 3.5',
         ])
