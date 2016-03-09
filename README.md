@@ -160,13 +160,21 @@ Everytime bit positions are automatically generated for a data layer, they use a
 
 This seed is completely random, but the positions where it's stored in the token are set based on the `secret_key`. Since every bit of the seed is random, it generates no readily-detectable pattern.
 
-## Sample usage
+_NOTE: The higher the `seed_bits` value is, the difficulty of detecting patterns in the resulting tokens rises._
 
-The following are a few common use cases for Token Cloak.
+## Notes on authentication
 
-### Random token + user id
+Currently, when using `Token.decode(public_token)`, the method will only return `None` if an incompatible number of bits is provided. There is no inherent way to determine if a token is authentic.
 
-In web
+Authentication can be handled server-side, perhaps by using the original `private_token` as the object of some other means of authentication.
+
+Alternatively, if authentication only serves as a way to prevent unnecessary waste of server resources, consider adding layers to tokens with static or readily-verifiable data.
+
+## Notes on security
+
+While this package offers a way to obfuscate data, there is little to no research about the effectiveness of this method to secure data in any way.
+
+**It is highly recommended not to put any private data in resulting tokens.** This package was originally intended to carry data to improve network infrastructure efficiency and performance, including things such as pointers to services, shard ids, data resources, and other non-confidential data.
 
 ## Appendix A
 
