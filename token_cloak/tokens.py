@@ -1,5 +1,6 @@
 import binascii
 import copy
+import hashlib
 import os
 import random
 
@@ -374,7 +375,7 @@ class Token:
                     layer_seed_seed = layer_seed_value
                     top = (2 ** self.seed_bits) - 1
                     layer_seed_value = random.randint(0, top)
-                
+                    
                 # Generate the layer positions using the seed.
                 layer_positions = self.generate_bit_positions(
                         seed=layer_seed_value,
@@ -541,6 +542,33 @@ class Token:
                 layers=stored_layers)
     
     
+    def hash_seed(self, seed):
+        """
+        Takes a seed and returns another seed that's been hashed with
+        this token's secret key.
+        
+        Args:
+            seed (int): Randomly generated seed value.
+            
+        Returns:
+            int: hashed with this token's secret key.
+        
+        """
+        # Start up our SHA256 object.
+        m = hashlib.sha256()
+        
+        # Insert the bytes from our original seed.
+        b = BitCollection.from_int(seed, bits=self.seed_bits)
+        m.update(b.to_bytes())
+        
+        # Insert the bytes from the secret key.
+        m.update(self.secret_key.encode('ascii'))
+        
+        # Get 32-bits worth of the resulting hash.
+        c = BitCollection.from_bytes(m.digest()[:4])
+        return c.to_int()
+    
+    
     def needed_seeds(self):
         """Calculates number of layer seeds needed to be generated."""
         need_seeds = 0
@@ -604,8 +632,7 @@ class Token:
         return 0
     
     
-    @staticmethod
-    def generate_bit_positions(seed, max_position, bits):
+    def generate_bit_positions(self, seed, max_position, bits):
         """
         Generates an ordered list of integer positions based on the
         provided elements.
@@ -621,7 +648,7 @@ class Token:
         
         """
         # Seed the randomness according to the seed
-        r = MT19937(seed)
+        r = MT19937(self.hash_seed(seed))
         
         # Start generating
         positions = []
