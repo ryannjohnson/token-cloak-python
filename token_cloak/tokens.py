@@ -93,6 +93,13 @@ class TokenLayer:
             
             # Positions is valid
             self.positions = positions
+        
+        self.seed_bits = None
+        if 'seed_bits' in d:
+            seed_bits = d.get('seed_bits')
+            if not isinstance(seed_bits, int) or seed_bits < 0:
+                raise ConfigError('seed bits must be a non-negative int')
+            self.seed_bits = seed_bits
     
     
     def to_bitcollection(self, v):
@@ -355,6 +362,7 @@ class Token:
         for index, layer in enumerate(self.layers):
             
             # Does this layer have positions?
+            seed_bits = None
             layer_seed_seed = None
             layer_seed_value = 0
             layer_positions = layer.positions
@@ -362,9 +370,12 @@ class Token:
                 
                 # Get the seed prepared.
                 layer_seed_value = seed_sources.pop()
-                if self.seed_bits:
+                seed_bits = layer.seed_bits
+                if seed_bits is None:
+                    seed_bits = self.seed_bits
+                if seed_bits:
                     layer_seed_seed = layer_seed_value
-                    b = BitCollection.from_random(self.seed_bits)
+                    b = BitCollection.from_random(seed_bits)
                     layer_seed_value = b.to_int()
                     
                 # Generate the layer positions using the seed.
@@ -388,7 +399,7 @@ class Token:
                 seed_positions = self.generate_bit_positions(
                         seed=layer_seed_seed,
                         max_position=public_token.length(),
-                        bits=self.seed_bits)
+                        bits=seed_bits)
                 
                 # Sew in the seed bits.
                 public_token.insert_int(
@@ -500,11 +511,14 @@ class Token:
                 
                 # Get the seed from the token.
                 layer_seed_value = seed_sources.pop()
-                if self.seed_bits:
+                seed_bits = layer.seed_bits
+                if seed_bits is None:
+                    seed_bits = self.seed_bits
+                if seed_bits:
                     seed_positions = self.generate_bit_positions(
                             seed=layer_seed_value,
-                            max_position=stored_token.length() - self.seed_bits,
-                            bits=self.seed_bits)
+                            max_position=stored_token.length() - seed_bits,
+                            bits=seed_bits)
                     
                     # Extract in the seed bits.
                     layer_seed_value = stored_token.extract_int(
@@ -549,7 +563,7 @@ class Token:
         m = hashlib.sha256()
         
         # Insert the bytes from our original seed.
-        b = BitCollection.from_int(seed, bits=self.seed_bits)
+        b = BitCollection.from_int(seed, bits=seed.bit_length())
         m.update(b.to_bytes())
         
         # Insert the bytes from the secret key.
@@ -589,7 +603,10 @@ class Token:
                 
                 # Add bits for included seed
                 if not layer.positions:
-                    total_bits += self.seed_bits
+                    seed_bits = layer.seed_bits
+                    if seed_bits is None:
+                        seed_bits = self.seed_bits
+                    total_bits += seed_bits
                 
                 # Add the number of bits the actual value can be
                 total_bits += layer.bits

@@ -31,10 +31,12 @@ class TestToken:
             {
                 "type": "hex",
                 "length": 10,
+                "seed_bits": 3,
             },
             {
                 "type": "int",
                 "bits": 50,
+                "seed_bits": 27,
             }
         ]
         a = "1234567890"
@@ -57,6 +59,7 @@ class TestToken:
                 {
                     "type": "int",
                     "bits": i,
+                    "seed_bits": random.choice([0,18,38,26,]),
                 }
             ]
             a = self.randint(i)

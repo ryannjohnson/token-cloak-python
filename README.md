@@ -22,7 +22,7 @@ Here's an example of how to hide a 64-bit integer inside of a token:
 ```py
 from token_cloak import BitCollection, Token
 
-# Setup the configuration for one kind of token.
+# Init a token encoder/decoder.
 token = Token({
     "secret_key": "$3crET-K#y",
     "layers": [{
