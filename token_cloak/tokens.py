@@ -177,7 +177,7 @@ class Token:
     A sample config could be stored as and submitted as the following:
         config = {
             "secret_key": "the length of this should be long",
-            "random_bits": 512,
+            "private_token_bits": 512,
             "seed_bits": 4,
             "layers": [
                 {
@@ -208,10 +208,10 @@ class Token:
         self.secret_key = None
         
         # Number of bits saying how many automatic positions exist.
-        self.seed_bits = 8
+        self.seed_bits = 0
         
         # What should the random token look like?
-        self.stored_token_bits = 512
+        self.stored_token_bits = 0
         
         # Values getting spliced into the public token.
         self.layers = []
@@ -251,20 +251,21 @@ class Token:
         
         # Determines the length of stored token.
         self.stored_token_bits = 0
-        random_bits = config.get('random_bits', None)
-        if random_bits:
+        private_token_bits = config.get('private_token_bits', None)
+        if private_token_bits:
             
             # Is it a direct injection?
-            if isinstance(random_bits, BitCollection):
-                self.stored_token_bits = random_bits
+            if isinstance(private_token_bits, BitCollection):
+                self.stored_token_bits = private_token_bits
             
             # Is it just a length for random generation?
             else:
-                if not isinstance(random_bits, int) or random_bits < 0:
+                if (not isinstance(private_token_bits, int)
+                        or private_token_bits < 0):
                     raise ConfigError('random bits must be a non-negative int')
                 
                 # Generate the token now
-                self.stored_token_bits = random_bits
+                self.stored_token_bits = private_token_bits
         
         # Determines how many possible seeds there can be.
         seed_bits = config.get('seed_bits', None)

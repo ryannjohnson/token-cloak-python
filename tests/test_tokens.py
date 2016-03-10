@@ -12,7 +12,7 @@ class TestToken:
             s += chars[random.randint(0, len(chars) - 1)]
         token_cloak.secret_key = s
         self.config = {
-            "random_bits": 123,
+            "private_token_bits": 123,
             "seed_bits": random.randint(0, 16),
         }
         self.start = 1
@@ -51,7 +51,7 @@ class TestToken:
         assert a != third.layers[0]
     
     def test_no_token(self):
-        del self.config["random_bits"]
+        del self.config["private_token_bits"]
         for i in range(self.start, self.end):
             self.config["layers"] = [
                 {
@@ -68,7 +68,7 @@ class TestToken:
     
     def test_custom_token(self):
         for i in range(self.start, self.end):
-            self.config["random_bits"] = i
+            self.config["private_token_bits"] = i
             a = self.randint(i)
             b = BitCollection.from_int(a, bits=i)
             token = Token(self.config)
@@ -78,7 +78,7 @@ class TestToken:
     
     def test_base64_token(self):
         for i in range(self.start, self.end):
-            self.config["random_bits"] = i
+            self.config["private_token_bits"] = i
             token = Token(self.config)
             first = token.encode()
             second = token.decode(
@@ -189,7 +189,7 @@ class TestToken:
     def test_int_layer_positions(self):
         for i in range(self.start, self.end):
             positions = []
-            max_position = self.config["random_bits"]
+            max_position = self.config["private_token_bits"]
             for j in range(i):
                 positions.append(random.randint(0, max_position + j))
             self.config["layers"] = [
@@ -205,5 +205,5 @@ class TestToken:
             second = token.decode(first.public_token)
             assert first.private_token.to_int() == second.private_token.to_int()
             assert second.layers[0] == a
-            assert second.public_token.length() == self.config["random_bits"] + i
+            assert second.public_token.length() == self.config["private_token_bits"] + i
     
