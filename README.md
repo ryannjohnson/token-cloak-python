@@ -15,32 +15,87 @@ To install via `pip`, run the following:
 $ pip install token_cloak
 ```
 
-## Quick start
+## Usage
 
-Here's an example of how to hide a 64-bit integer inside of a token:
+Here's an example of how to hide multiple data types inside of a token:
 
 ```py
 from token_cloak import BitCollection, Token
 
-# Init a token encoder/decoder.
-token = Token({
+# Define token configuration once.
+MY_CONFIG = {
+    
+    # Makes bit positions unique to this key.
     "secret_key": "$3crET-K#y",
-    "layers": [{
-        "type": "int",
-        "bits": 64,
-    }],
-})
+    
+    # Length of the private token (default = 0).
+    "private_token_bits": 512,
+    
+    # Number of bits to use for layer seeds (default = 0).
+    "seed_bits": 16,
+    
+    # Name our layers in order of appearance.
+    "layers": [
+        
+        # First layer is a 13-bit integer.
+        {
+            "type": "int",
+            "bits": 13,
+        },
+        
+        # Second layer is a 6-character (24-bit) hexadecimal str.
+        {
+            "type": "hex",
+            "length": 6,
+            
+            # Custom for just this layer.
+            "seed_bits": 12,
+            
+        },
+        
+        # Third layer is a single byte (8 bits).
+        {
+            "type": "bytes",
+            "length": 1,
+            
+            # Custom bit positions for just this layer - no seed.
+            "positions": [527, 1, 439, 38, 393, 224, 527, 5],
+            
+        },
+        
+        # Fourth layer is a token_cloak.BitCollection object.
+        {
+            "type": "BitCollection",
+            "bits": 25
+        },
+        
+    ],
+    
+}
 
-# Generate a base64-encoded token with hidden data.
-data = 12345678
-public_token = token.encode(data).public_token.to_base64()
+# Init a token encoder/decoder object.
+token = Token(MY_CONFIG)
 
-# Decode the token.
-result = token.decode(public_token, data_type="base64")
+# Determine our variables to hide.
+int_data = 8175
+hex_data = "23bc8f"
+bytes_data = b'5'
+bit_collection_data = BitCollection.from_int(32568251, bits=25)
 
-# Get the hidden data.
-if result:
-    print(result.layers[0]) # Equals 12345678
+# Generate our new token with our data.
+result_a = token.encode(int_data, hex_data, bytes_data, bit_collection_data)
+
+# Get the new token's public_token as a url-safe base64-encoded str.
+base64_public_token = result_a.public_token.to_base64(url_safe=True)
+
+# Decode the base64-encoded token str.
+result_b = token.decode(base64_public_token, data_type="base64")
+
+# Get all the hidden data in their original data types.
+assert int_data == result_b.layers[0]
+assert hex_data == result_b.layers[1]
+assert bytes_data == result_b.layers[2]
+assert bit_collection_data == result_b.layers[3]
 ```
 
 ## How it works
@@ -130,6 +185,7 @@ Name | Type | Description
 `type` | str | Required. Describes the data type to expect during encoding and to return during decoding. Must be in `BitCollection`, `bytes`, `int`, or `hex`.
 `bits` | int | Required for `BitCollection` and `int`. Required if no `length` for `bytes` and `hex`. Describes how many bits this data layer uses. If `bits` and `length` are both present, `bits` always takes precedence.
 `length` | int | Required if `bits` is not set for `bytes` and `hex` data types. Length allows the user to designate the number of units to use for that data type. For instance, a `bytes` object of `length` 4 would equal 32 `bits`. The `hex` value "3f" (a length of 2) would equal 8 `bits`.
+`seed_bits` | int | Optional for any data type. Defaults to the global `seed_bits`, which defaults to 0.
 `positions` | list | Optional for any data type. Contains integers denoting the order and position to insert bits into the token. List will be reversed for bit extraction. Must match the number of `bits` for the layer. Must also only contain valid positions 0 <= x <= current_token_length. Note that the token length grows with every insertion, broadening the range of valid positions with every added bit. Order
 
 ### Random Bits
@@ -172,7 +228,7 @@ Alternatively, if authentication only serves as a way to prevent unnecessary was
 
 ## Notes on security
 
-While this package offers a way to obfuscate data, there is little to no research about the effectiveness of this method to secure data in any way.
+While this package offers a way to obfuscate data, this is not a secure data encryption algorithm.
 
 **It is highly recommended not to put any private data in resulting tokens.** This package was originally intended to carry data to improve network infrastructure efficiency and performance, including things such as pointers to services, shard ids, data resources, and other non-confidential data.
 

@@ -118,7 +118,7 @@ class TestToken:
             assert first.private_token.to_int() == second.private_token.to_int()
             assert second.layers[0] == a
             s = i + token.seed_bits
-            assert second.public_token.length() == token.stored_token_bits + s
+            assert second.public_token.length() == token.private_token_bits + s
     
     def test_bytes_layer_bits(self):
         for i in range(self.start, self.end):

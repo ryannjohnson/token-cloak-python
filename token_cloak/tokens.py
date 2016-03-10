@@ -218,7 +218,7 @@ class Token:
         self.seed_bits = 0
         
         # What should the random token look like?
-        self.stored_token_bits = 0
+        self.private_token_bits = 0
         
         # Values getting spliced into the public token.
         self.layers = []
@@ -257,13 +257,13 @@ class Token:
         self.secret_key_collection = SecretKeyCollection(self.secret_key)
         
         # Determines the length of stored token.
-        self.stored_token_bits = 0
+        self.private_token_bits = 0
         private_token_bits = config.get('private_token_bits', None)
         if private_token_bits:
             
             # Is it a direct injection?
             if isinstance(private_token_bits, BitCollection):
-                self.stored_token_bits = private_token_bits
+                self.private_token_bits = private_token_bits
             
             # Is it just a length for random generation?
             else:
@@ -272,7 +272,7 @@ class Token:
                     raise ConfigError('random bits must be a non-negative int')
                 
                 # Generate the token now
-                self.stored_token_bits = private_token_bits
+                self.private_token_bits = private_token_bits
         
         # Determines how many possible seeds there can be.
         seed_bits = config.get('seed_bits', None)
@@ -325,9 +325,9 @@ class Token:
                 raise ValueError('token must be a BitCollection')
             
             # Is it the correct length?
-            if stored_token.length() != self.stored_token_bits:
+            if stored_token.length() != self.private_token_bits:
                 err = 'token must be %d bits long, is currently %d'
-                err = err % (self.stored_token_bits, stored_token.length(),)
+                err = err % (self.private_token_bits, stored_token.length(),)
                 raise ValueError(err)
             
             # Adjust the args for proper use.
@@ -335,8 +335,8 @@ class Token:
         
         # Generate a new stored token.
         if not stored_token:
-            if self.stored_token_bits and self.stored_token_bits > 0:
-                stored_token = BitCollection.from_random(self.stored_token_bits)
+            if self.private_token_bits and self.private_token_bits > 0:
+                stored_token = BitCollection.from_random(self.private_token_bits)
             else:
                 stored_token = BitCollection()
         
@@ -595,7 +595,7 @@ class Token:
         
         """
         # How many random bits are there?
-        total_bits = self.stored_token_bits
+        total_bits = self.private_token_bits
         
         # Do the math for each layer
         if self.layers:
